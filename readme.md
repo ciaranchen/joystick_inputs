@@ -17,6 +17,14 @@ pip install -r requirements.txt
 python main.py
 ```
 
+![image-20211101153838105](readme.assets/image-20211101153838105.png)
+
+推动左右摇杆，选择合适的键盘。
+
+![image-20211101154023270](readme.assets/image-20211101154023270.png)
+
+按动右Trigger，输入内容。
+
 ## 问题
 
 遇到的问题主要是在窗口未聚焦的情况下，如何监听手柄的输入。
@@ -29,6 +37,9 @@ xinput.py 拷贝自 <https://github.com/r4dian/Xbox-Controller-for-Python>
 
 ## todo
 
-1. 更合适的键盘映射。
-2. 组合键。
-3. 更好的界面。
+1. 更合适的64键盘映射。
+2. 适合手柄上其他按钮的组合键。
+3. 更好的界面。（透明，而且换一些合适的配色。
+4. 按下扳机确认输入后，振动反馈。
+5. 一些配置界面。
+
