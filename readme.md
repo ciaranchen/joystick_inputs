@@ -43,3 +43,7 @@ xinput.py 拷贝自 <https://github.com/r4dian/Xbox-Controller-for-Python>
 4. 按下扳机确认输入后，振动反馈。
 5. 一些配置界面。
 
+## Acknowledge
+
+> xinput.py is from: http://pydoc.net/Python/jaraco.input/1.0.1/jaraco.input.win32.xinput/
+> bigram-pairs.json is from: https://gist.github.com/lydell/c439049abac2c9226e53#file-pairs-json

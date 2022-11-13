@@ -3,33 +3,29 @@
 File to handle the Joystick Thumb Input
 """
 import math
-from code_table import CodeTable
+from code_table import SingleEnglishCode as CodeTable
 
 
 class BasicConfig:
-    lstart_arc = - math.pi / 4
-    larc_number = 4
-    rstart_arc = - math.pi / 8
-    rarc_number = 8
     arc_threshold = 0.3
-    l_arc_mapping = {
-    }
-    r_arc_mapping = {
-    }
 
     def __init__(self):
         self.ct = CodeTable()
+
+    @staticmethod
+    def start_arc(num):
+        return - math.pi / num
 
     @staticmethod
     def arc_distance(x, y):
         return math.dist((x, y), (0, 0))
 
     @staticmethod
-    def whichArc(x, y, arc_num, start_arc):
+    def which_arc(x, y, arc_num, start_arc):
         if BasicConfig.arc_distance(x, y) < BasicConfig.arc_threshold:
             return 0
         angle = math.atan2(-y, x)
-        if angle < 0:
+        if angle < start_arc:
             angle += 2 * math.pi
         for i in range(arc_num):
             angle1 = start_arc + i * (2 / arc_num * math.pi)
@@ -39,12 +35,11 @@ class BasicConfig:
         return -1
 
     def get_key(self, lx, ly, rx, ry):
-        la = BasicConfig.whichArc(lx, ly, BasicConfig.larc_number, BasicConfig.lstart_arc)
-        ra = BasicConfig.whichArc(rx, ry, BasicConfig.rarc_number, BasicConfig.rstart_arc)
-        print(la, ra)
-        return "a"
+        la = BasicConfig.which_arc(lx, ly, self.ct.LNum, self.start_arc(self.ct.LNum))
+        ra = BasicConfig.which_arc(rx, ry, self.ct.RNum, self.start_arc(self.ct.RNum))
+        return self.ct.get_code(la, ra)
 
 
 if __name__ == '__main__':
     bc = BasicConfig()
-    print(bc.get_key(0.6, 0.7, 0.2, 0.1))
+    print(bc.get_key(0.4, 0.2, 0.7, 0.1))

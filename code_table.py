@@ -120,13 +120,49 @@ class SingleEnglishCode:
     # TODO: consider Bi-gram probability
     LNum = 4
     RNum = 8
+    special_code = {
+        # Left Thumb Down for number
+        (3, 8): '1', (3, 1): '2', (3, 2): '3',
+        (3, 7): '4', (3, 0): '5', (3, 3): '6',
+        (3, 6): '7', (3, 5): '8', (3, 4): '9',
+
+        (0, 0): 'Space',
+        (1, 0): 'Return',
+        (2, 0): 'Backspace',
+        (4, 0): 'Tab',
+
+        # Right Thumb Down for special keys
+        (0, 5): '0',
+        (1, 5): ',',
+        (2, 5): '.',
+        (4, 5): ';',
+    }
+    Frq_single_gram = "etaoins"
+    freq_mappings = {
+        'e': ['z', 'j', 'q'],
+        't': ['v', 'k', 'd'],
+        'a': ['x', 'y', 'f'],
+        'o': ['g', 'b', 'h'],
+        'i': ['u', 'p', 'w'],
+        'n': ['m', 'l', 'r'],
+        's': ['c', '?', "'"]
+    }
+
+    def __init__(self):
+        self.code = self.special_code.copy()
+        no_assign = [1, 2, 3, 4, 6, 7, 8]
+        for i, z in zip(no_assign, self.freq_mappings):
+            self.code[(0, i)] = z
+            self.code[(1, i)] = self.freq_mappings[z][0]
+            self.code[(2, i)] = self.freq_mappings[z][1]
+            self.code[(4, i)] = self.freq_mappings[z][2]
 
     def get_code(self, x: int, y: int) -> str:
         """
         return key in (x, y)
         """
         assert x <= self.LNum and y <= self.RNum
-        return "a"
+        return self.code[(x, y)]
 
     def get_code_recommand(self, x: int, y: int) -> (Dict[int, str], Dict[int, str]):
         """
@@ -134,10 +170,9 @@ class SingleEnglishCode:
         """
         pass
 
-
-class CodeTable(object):
-    @staticmethod
-    def return_code(x, y):
-        index = x * 8 + y
-        index = index % len(code_table)
-        return code_table[index]
+# class CodeTable(object):
+#     @staticmethod
+#     def return_code(x, y):
+#         index = x * 8 + y
+#         index = index % len(code_table)
+#         return code_table[index]
