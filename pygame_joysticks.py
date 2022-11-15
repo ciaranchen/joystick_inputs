@@ -1,4 +1,7 @@
 # coding: utf-8
+from code_table import SingleEnglishCode
+from input_method_config import BasicConfig
+from pynput.keyboard import Controller
 import pygame
 import os
 
@@ -7,11 +10,9 @@ os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
 pygame.init()
 
 
-from input_method_config import BasicConfig
-from pynput.keyboard import Key, Controller
-
-
 class XBoxHandler:
+    LR_AXIS = (0, 1, 3, 4)
+
     def __init__(self, imc):
         self.joy = None
         self.binding = False
@@ -29,20 +30,17 @@ class XBoxHandler:
     def handle_trigger(self, events):
         for e in events:
             if e.type == pygame.JOYBUTTONDOWN:
-                print("Joy button pressed.")
                 # get axis state
                 lx, ly = self.joy.get_axis(0), self.joy.get_axis(1)
                 rx, ry = self.joy.get_axis(3), self.joy.get_axis(4)
-                print(lx, ly)
                 key = self.imc.get_key(lx, ly, rx, ry)
-                print(key)
                 self.keyboard.press(key)
 
         pass
 
 
 def unittest():
-    h = XBoxHandler(BasicConfig())
+    h = XBoxHandler(BasicConfig(SingleEnglishCode))
 
     pygame.event.set_grab(True)  # Keeps the cursor within the pygame window
 

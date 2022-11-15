@@ -9,8 +9,8 @@ from code_table import SingleEnglishCode as CodeTable
 class BasicConfig:
     arc_threshold = 0.3
 
-    def __init__(self):
-        self.ct = CodeTable()
+    def __init__(self, code_table):
+        self.ct = code_table
 
     @staticmethod
     def start_arc(num):
@@ -41,5 +41,5 @@ class BasicConfig:
 
 
 if __name__ == '__main__':
-    bc = BasicConfig()
+    bc = BasicConfig(CodeTable())
     print(bc.get_key(0.4, 0.2, 0.7, 0.1))
