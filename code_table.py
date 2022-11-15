@@ -135,7 +135,7 @@ class SingleEnglishCode:
         (0, 5): '0',
         (1, 5): ',',
         (2, 5): '.',
-        (4, 5): ';',
+        (4, 5): 'Semicolon',  # ";"
     }
     Frq_single_gram = "etaoins"
     freq_mappings = {
@@ -149,6 +149,8 @@ class SingleEnglishCode:
     }
 
     def __init__(self):
+        self.trigger_mapping = ("Shift", None)
+
         self.code = self.special_code.copy()
         no_assign = [1, 2, 3, 4, 6, 7, 8]
         for i, z in zip(no_assign, self.freq_mappings):
