@@ -34,18 +34,14 @@ class BasicConfig:
                 return i + 1
         return -1
 
-    def get_key(self, lx, ly, rx, ry):
+    def get_arcs(self, lx, ly, rx, ry):
         la = BasicConfig.which_arc(lx, ly, self.ct.LNum, self.start_arc(self.ct.LNum))
         ra = BasicConfig.which_arc(rx, ry, self.ct.RNum, self.start_arc(self.ct.RNum))
-        return self.ct.get_code(la, ra)
-
-    def get_recommend(self, lx, ly, rx, ry):
-        la = BasicConfig.which_arc(lx, ly, self.ct.LNum, self.start_arc(self.ct.LNum))
-        ra = BasicConfig.which_arc(rx, ry, self.ct.RNum, self.start_arc(self.ct.RNum))
-        return self.ct.get_recommend(la, ra)
+        return la, ra
 
 
 if __name__ == '__main__':
-    bc = BasicConfig(CodeTable())
-    print(bc.get_key(0.4, 0.2, 0.7, 0.1))
-    print(bc.get_recommend(0.4, 0.2, 0.7, 0.1))
+    ct = CodeTable()
+    bc = BasicConfig(ct)
+    print(ct.get_code(*bc.get_arcs(0.4, 0.2, 0.7, 0.1)))
+    print(ct.get_recommend(*bc.get_arcs(0.4, 0.2, 0.7, 0.1)))

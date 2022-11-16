@@ -1,7 +1,6 @@
 # coding: utf-8
 from code_table import SingleEnglishCode
 from input_method_config import BasicConfig
-from pynput.keyboard import Controller
 import pygame
 import os
 
@@ -11,15 +10,15 @@ pygame.init()
 
 
 class XBoxHandler:
-    LR_AXIS = (0, 1, 3, 4)
+    LR_AXIS = (0, 1, 2, 3)
 
-    def __init__(self, imc):
+    def __init__(self):
         self.joy = None
         self.binding = False
-        self.imc = imc
-        self.keyboard = Controller()
 
     def refresh(self, joysticks, name="Xbox 360 Controller"):
+        if self.binding:
+            return
         for joy in joysticks.values():
             if joy.get_name() == name:
                 self.joy = joy
@@ -27,20 +26,18 @@ class XBoxHandler:
                 return
         self.binding = False
 
-    def handle_trigger(self, events):
+    def handle_trigger(self, events, callback):
         for e in events:
             if e.type == pygame.JOYBUTTONDOWN:
                 # get axis state
                 lx, ly = self.joy.get_axis(0), self.joy.get_axis(1)
                 rx, ry = self.joy.get_axis(3), self.joy.get_axis(4)
-                key = self.imc.get_key(lx, ly, rx, ry)
-                self.keyboard.press(key)
-
-        pass
+                callback(lx, ly, rx, ry)
 
 
 def unittest():
-    h = XBoxHandler(BasicConfig(SingleEnglishCode))
+    bc = BasicConfig(SingleEnglishCode)
+    h = XBoxHandler()
 
     pygame.event.set_grab(True)  # Keeps the cursor within the pygame window
 
