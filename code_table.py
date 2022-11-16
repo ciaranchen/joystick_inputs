@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 scan_code_dict = {
     "00 00": "None",
@@ -166,15 +166,10 @@ class SingleEnglishCode:
         assert x <= self.LNum and y <= self.RNum
         return self.code[(x, y)]
 
-    def get_code_recommand(self, x: int, y: int) -> (Dict[int, str], Dict[int, str]):
+    def get_recommend(self, x: int, y: int) -> (List[str], List[str]):
         """
         return the code table for (x, y)
         """
-        pass
-
-# class CodeTable(object):
-#     @staticmethod
-#     def return_code(x, y):
-#         index = x * 8 + y
-#         index = index % len(code_table)
-#         return code_table[index]
+        code = self.code
+        return [code[(l, y)] for l in range(self.LNum + 1)],\
+               [code[(x, r)] for r in range(self.RNum + 1)]

@@ -39,7 +39,13 @@ class BasicConfig:
         ra = BasicConfig.which_arc(rx, ry, self.ct.RNum, self.start_arc(self.ct.RNum))
         return self.ct.get_code(la, ra)
 
+    def get_recommend(self, lx, ly, rx, ry):
+        la = BasicConfig.which_arc(lx, ly, self.ct.LNum, self.start_arc(self.ct.LNum))
+        ra = BasicConfig.which_arc(rx, ry, self.ct.RNum, self.start_arc(self.ct.RNum))
+        return self.ct.get_recommend(la, ra)
+
 
 if __name__ == '__main__':
     bc = BasicConfig(CodeTable())
     print(bc.get_key(0.4, 0.2, 0.7, 0.1))
+    print(bc.get_recommend(0.4, 0.2, 0.7, 0.1))
