@@ -32,9 +32,9 @@ class JoystickGui(Handler):
         pygame.init()
         super().__init__()
         self.window_size = 400
-        self.screen = pygame.display.set_mode((self.window_size * 2, self.window_size),
-                                              pygame.NOFRAME | pygame.RESIZABLE)
+
         self.keyboard = Controller()
+        self.mouse_pressed = False
         self.start_pos = (0, 0)
 
         self.code_table = CodeTable()
@@ -42,6 +42,7 @@ class JoystickGui(Handler):
 
         self.font = pygame.font.Font(None, 30)
         self.gui_config = {
+            'panel_gap': self.window_size / 10,
             'radius_gap': self.window_size / 20,
             'angle_gap': math.pi / 40,
             'l_radius': self.window_size / 2,
@@ -50,13 +51,22 @@ class JoystickGui(Handler):
 
         self.gui_config['l_inner_radius'] = self.gui_config['l_radius'] * self.imc.arc_threshold
         self.gui_config['r_inner_radius'] = self.gui_config['r_radius'] * self.imc.arc_threshold
-        self.mouse_pressed = False
+
+        self.screen = pygame.display.set_mode(
+            (self.window_size * 2 + self.gui_config['panel_gap'], self.window_size),
+            pygame.NOFRAME | pygame.RESIZABLE)
         # Create layered window
         hwnd = pygame.display.get_wm_info()["window"]
         win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE,
                                win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE) | win32con.WS_EX_LAYERED)
         # Set window transparency color
         win32gui.SetLayeredWindowAttributes(hwnd, win32api.RGB(*fuchsia), 0, win32con.LWA_COLORKEY)
+
+    @staticmethod
+    def cube2circle(x, y):
+        nx = x * math.sqrt(1 - y * y / 2)
+        ny = y * math.sqrt(1 - x * x / 2)
+        return nx, ny
 
     def moveWin(self, coordinates):
         # the handle to the window
@@ -121,7 +131,7 @@ class JoystickGui(Handler):
 
         self.screen.set_alpha(128)
         l_center = (self.window_size / 2, self.window_size / 2)
-        r_center = (self.window_size * 3 / 2, self.window_size / 2)
+        r_center = (self.window_size * 3 / 2 + self.gui_config['panel_gap'], self.window_size / 2)
 
         clock = pygame.time.Clock()
         joysticks = {}
@@ -181,9 +191,10 @@ class JoystickGui(Handler):
                             self.gui_config['l_radius'],
                             self.gui_config['l_inner_radius'],
                             l_keys, self.gui_config['angle_gap'])
+            lnx, lny = self.cube2circle(self.lx, self.ly)
             pygame.draw.circle(self.screen, GuiStyle.l_handle_color,
-                               (l_center[0] + self.lx * self.gui_config['l_radius'],
-                                l_center[1] + self.ly * self.gui_config['l_radius']),
+                               (l_center[0] + lnx * self.gui_config['l_radius'],
+                                l_center[1] + lny * self.gui_config['l_radius']),
                                10)
 
             # draw Right Axis
@@ -193,9 +204,10 @@ class JoystickGui(Handler):
                             self.gui_config['r_radius'],
                             self.gui_config['r_inner_radius'],
                             r_keys, self.gui_config['angle_gap'])
+            rnx, rny = self.cube2circle(self.rx, self.ry)
             pygame.draw.circle(self.screen, GuiStyle.r_handle_color,
-                               (r_center[0] + self.rx * self.gui_config['r_radius'],
-                                r_center[1] + self.ry * self.gui_config['r_radius']),
+                               (r_center[0] + rnx * self.gui_config['r_radius'],
+                                r_center[1] + rny * self.gui_config['r_radius']),
                                10)
 
             pygame.display.flip()
