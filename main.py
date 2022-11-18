@@ -1,26 +1,20 @@
-from ctypes import windll
-
-from pynput.keyboard import Controller
-
-from pygame_joysticks import XBoxHandler as Handler
+from pygame_joysticks import JoyConHandler as Handler
 from input_method_config import BasicConfig as IMC
 from code_table import SingleEnglishCode as CodeTable
+
 import pygame
+import os
 import math
 import win32api
 import win32con
 import win32gui
+from ctypes import windll
+from pynput.keyboard import Controller
+
+os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
 
 fuchsia = (255, 255, 255)  # Transparency color
 dark = (0, 0, 0)
-
-
-def limit_to(number, lower, upper):
-    if number < lower:
-        return lower
-    if number > upper:
-        return upper
-    return number
 
 
 class GuiStyle:
@@ -33,8 +27,10 @@ class GuiStyle:
     r_handle_color = 0xfe0016  # Nintendo Red
 
 
-class JoystickGui(object):
+class JoystickGui(Handler):
     def __init__(self):
+        pygame.init()
+        super().__init__()
         self.window_size = 400
         self.screen = pygame.display.set_mode((self.window_size * 2, self.window_size),
                                               pygame.NOFRAME | pygame.RESIZABLE)
@@ -43,23 +39,17 @@ class JoystickGui(object):
 
         self.code_table = CodeTable()
         self.imc = IMC(self.code_table)
-        self.handler = Handler()
-        self.lx, self.ly, self.rx, self.ry = 0, 0, 0, 0
 
         self.font = pygame.font.Font(None, 30)
         self.gui_config = {
             'radius_gap': self.window_size / 20,
+            'angle_gap': math.pi / 40,
             'l_radius': self.window_size / 2,
             'r_radius': self.window_size / 2,
-
-            'x_inner_radius': self.window_size / 6,
-            'x_outer_radius': self.window_size / 2,
-            'y_inner_radius': self.window_size / 20,
-            'y_outer_radius': self.window_size / 8,
-            'yh_inner_radius': self.window_size / 10,
-            'yh_outer_radius': self.window_size / 4
         }
 
+        self.gui_config['l_inner_radius'] = self.gui_config['l_radius'] * self.imc.arc_threshold
+        self.gui_config['r_inner_radius'] = self.gui_config['r_radius'] * self.imc.arc_threshold
         self.mouse_pressed = False
         # Create layered window
         hwnd = pygame.display.get_wm_info()["window"]
@@ -67,19 +57,6 @@ class JoystickGui(object):
                                win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE) | win32con.WS_EX_LAYERED)
         # Set window transparency color
         win32gui.SetLayeredWindowAttributes(hwnd, win32api.RGB(*fuchsia), 0, win32con.LWA_COLORKEY)
-
-    def handle_axis(self, events):
-        for e in events:
-            if e.type == pygame.JOYAXISMOTION:
-                if e.instance_id == self.handler.joy.get_instance_id() and e.axis in self.handler.LR_AXIS:
-                    if e.axis == self.handler.LR_AXIS[0]:
-                        self.lx = limit_to(e.value, -1, 1)
-                    elif e.axis == self.handler.LR_AXIS[1]:
-                        self.ly = limit_to(e.value, -1, 1)
-                    elif e.axis == self.handler.LR_AXIS[2]:
-                        self.rx = limit_to(e.value, -1, 1)
-                    elif e.axis == self.handler.LR_AXIS[3]:
-                        self.ry = limit_to(e.value, -1, 1)
 
     def moveWin(self, coordinates):
         # the handle to the window
@@ -89,7 +66,7 @@ class JoystickGui(object):
         w, h = pygame.display.get_surface().get_size()
         windll.user32.MoveWindow(hwnd, -coordinates[0], -coordinates[1], w, h, False)
 
-    def draw_panel(self, arc_number, start_arc, number, choice_color, cx, cy, r1, r2, texts, gap=40):
+    def draw_panel(self, arc_number, start_arc, number, choice_color, cx, cy, r1, r2, texts, angle_gap):
         pygame.draw.circle(self.screen, GuiStyle.base_color, (cx, cy), r2)
         if number == 0:
             pygame.draw.circle(self.screen, choice_color, (cx, cy), r2, width=5)
@@ -100,9 +77,9 @@ class JoystickGui(object):
             a2 = a1 + math.pi * 2 / arc_number
             arc_color = choice_color if i + 1 == number else GuiStyle.base_color
             self.draw_arc(
-                a1 + (math.pi / gap), a2 - (math.pi / gap),
+                a1 + angle_gap, a2 - angle_gap,
                 cx, cy,
-                r1 - self.gui_config['radius_gap'],
+                r1,
                 r2 + self.gui_config['radius_gap'],
                 color=arc_color, text=texts[i + 1])
 
@@ -110,12 +87,11 @@ class JoystickGui(object):
         def arc_line_points(x, y, r, _a1=a1, _a2=a2):
             return [
                 (x + r * math.cos((n * (_a2 - _a1) / 180 + _a1)),
-                 y - r * math.sin((n * (_a2 - _a1) / 180 + _a1)))
+                 y + r * math.sin((n * (_a2 - _a1) / 180 + _a1)))
                 for n in range(181)  # 0-180
             ]
 
         p1 = arc_line_points(cx, cy, cr1)
-        # print(p1)
         p2 = arc_line_points(cx, cy, cr2)
         p2.reverse()
         # Shape Color
@@ -125,8 +101,8 @@ class JoystickGui(object):
         if color != GuiStyle.base_color:
             pygame.draw.line(self.screen, color, p1[0], p2[-1], width=5)
             pygame.draw.line(self.screen, color, p1[-1], p2[0], width=5)
-            pygame.draw.arc(self.screen, color, (cx - cr1, cy - cr1, 2 * cr1, 2 * cr1), a1, a2, width=5)
-            pygame.draw.arc(self.screen, color, (cx - cr2, cy - cr2, 2 * cr2, 2 * cr2), a1, a2, width=5)
+            pygame.draw.lines(self.screen, color, False, p1, width=5)
+            pygame.draw.lines(self.screen, color, False, p2, width=5)
 
         # Text
         point_4 = [p1[0], p1[-1], p2[-1], p2[0]]
@@ -138,8 +114,12 @@ class JoystickGui(object):
         self.mouse_pressed = False
         start_pos = []
 
+        def press_key(lx, ly, rx, ry):
+            la, ra = self.imc.get_arcs(lx, ly, rx, ry)
+            code = self.code_table.get_code(la, ra)
+            self.keyboard.tap(code)
+
         self.screen.set_alpha(128)
-        # Lcircle_center = self.window_size / 2
         l_center = (self.window_size / 2, self.window_size / 2)
         r_center = (self.window_size * 3 / 2, self.window_size / 2)
 
@@ -151,6 +131,7 @@ class JoystickGui(object):
         while True:
             self.screen.fill(fuchsia)
             events = pygame.event.get()
+            # print(events)
             for event in events:
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -184,27 +165,22 @@ class JoystickGui(object):
                     del joysticks[event.instance_id]
                     print(f"Joystick {event.instance_id} disconnected")
 
-            self.handler.refresh(joysticks)
+            self.refresh(joysticks)
 
-            self.handle_axis(events)
+            if self.binding:
+                self.handle_axis(events)
+                self.handle_trigger(events, press_key)
 
             l_arc_id, r_arc_id = self.imc.get_arcs(self.lx, self.ly, self.rx, self.ry)
             l_keys, r_keys = self.code_table.get_recommend(l_arc_id, r_arc_id)
 
-            def press_key(lx, ly, rx, ry):
-                la, ra = self.imc.get_arcs(lx, ly, rx, ry)
-                code = self.code_table.get_code(la, ra)
-                self.keyboard.tap(code)
-
-            if self.handler.binding:
-                self.handler.handle_trigger(events, press_key)
-
             # draw Left Axis
             self.draw_panel(self.code_table.LNum, self.imc.start_arc(self.code_table.LNum),
                             l_arc_id, GuiStyle.l_handle_color,
-                            l_center[0], l_center[1], self.window_size / 2,
-                            self.window_size / 2 * self.imc.arc_threshold,
-                            l_keys)
+                            l_center[0], l_center[1],
+                            self.gui_config['l_radius'],
+                            self.gui_config['l_inner_radius'],
+                            l_keys, self.gui_config['angle_gap'])
             pygame.draw.circle(self.screen, GuiStyle.l_handle_color,
                                (l_center[0] + self.lx * self.gui_config['l_radius'],
                                 l_center[1] + self.ly * self.gui_config['l_radius']),
@@ -213,9 +189,10 @@ class JoystickGui(object):
             # draw Right Axis
             self.draw_panel(self.code_table.RNum, self.imc.start_arc(self.code_table.RNum),
                             r_arc_id, GuiStyle.r_handle_color,
-                            r_center[0], r_center[1], self.window_size / 2,
-                            self.window_size / 2 * self.imc.arc_threshold,
-                            r_keys)
+                            r_center[0], r_center[1],
+                            self.gui_config['r_radius'],
+                            self.gui_config['r_inner_radius'],
+                            r_keys, self.gui_config['angle_gap'])
             pygame.draw.circle(self.screen, GuiStyle.r_handle_color,
                                (r_center[0] + self.rx * self.gui_config['r_radius'],
                                 r_center[1] + self.ry * self.gui_config['r_radius']),

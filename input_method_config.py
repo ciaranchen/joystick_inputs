@@ -24,13 +24,13 @@ class BasicConfig:
     def which_arc(x, y, arc_num, start_arc):
         if BasicConfig.arc_distance(x, y) < BasicConfig.arc_threshold:
             return 0
-        angle = math.atan2(-y, x)
+        angle = math.atan2(y, x)
         if angle < start_arc:
             angle += 2 * math.pi
         for i in range(arc_num):
             angle1 = start_arc + i * (2 / arc_num * math.pi)
             angle2 = angle1 + (2 / arc_num * math.pi)
-            if angle1 < angle < angle2 or (angle1 - math.pi * 2) < angle < (angle2 - math.pi * 2):
+            if angle1 <= angle < angle2 or (angle1 - math.pi * 2) <= angle < (angle2 - math.pi * 2):
                 return i + 1
         return -1
 
