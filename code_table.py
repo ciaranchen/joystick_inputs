@@ -1,6 +1,58 @@
 from typing import List
 from pynput.keyboard import Key
 
+key_table = {
+    "Windows": Key.cmd,
+    "Left Windows": Key.cmd_l,
+    "Right Windows": Key.cmd_r,
+    "Ctrl": Key.ctrl,
+    "Left Ctrl": Key.ctrl_l,
+    "Right Ctrl": Key.ctrl_r,
+    "Shift": Key.shift,
+    "Left Shift": Key.shift_l,
+    "Right Shift": Key.shift_r,
+    "Alt": Key.alt,
+    "Left Alt": Key.alt_l,
+    "Right Alt": Key.alt_r,
+
+    "Esc": Key.esc,
+    "Backspace": Key.backspace,
+    "Tab": Key.tab,
+    "Enter": Key.enter,
+    "Space": Key.space,
+    "Caps Lock": Key.caps_lock,
+    "Num Lock": Key.num_lock,
+
+    "F1": Key.f1,
+    "F2": Key.f2,
+    "F3": Key.f3,
+    "F4": Key.f4,
+    "F5": Key.f5,
+    "F6": Key.f6,
+    "F7": Key.f7,
+    "F8": Key.f8,
+    "F9": Key.f9,
+    "F10": Key.f10,
+    "F11": Key.f11,
+    "F12": Key.f12,
+
+    "PrtSc": Key.print_screen,
+    "Scroll Lock": Key.scroll_lock,
+    "Pause": Key.pause,
+
+    "Insert": Key.insert,
+    "Delete": Key.delete,
+    "Home": Key.home,
+    "End": Key.end,
+    "Page Up": Key.page_up,
+    "Page Down": Key.page_down,
+
+    "Up": Key.up,
+    "Left": Key.left,
+    "Right": Key.right,
+    "Down": Key.down,
+}
+
 
 class SingleEnglishCode:
     """
@@ -18,7 +70,7 @@ class SingleEnglishCode:
         (3, 6): '7', (3, 5): '8', (3, 4): '9',
 
         (0, 0): 'Space',
-        (1, 0): 'Return',
+        (1, 0): 'Enter',
         (2, 0): 'Backspace',
         (4, 0): 'Tab',
 
@@ -26,7 +78,7 @@ class SingleEnglishCode:
         (0, 5): '0',
         (1, 5): ',',
         (2, 5): '.',
-        (4, 5): 'Semicolon',  # ";"
+        (4, 5): ';',
     }
     Frq_single_gram = "etaoins"
     freq_mappings = {
@@ -50,12 +102,13 @@ class SingleEnglishCode:
             self.code[(2, i)] = self.freq_mappings[z][1]
             self.code[(4, i)] = self.freq_mappings[z][2]
 
-    def get_code(self, x: int, y: int) -> str:
+    def get_code(self, x: int, y: int) -> str or Key:
         """
         return key in (x, y)
         """
         assert x <= self.LNum and y <= self.RNum
-        return self.code[(x, y)]
+        key = self.code[(x, y)]
+        return key_table[key] if key in key_table else key
 
     def get_recommend(self, x: int, y: int) -> (List[str], List[str]):
         """
