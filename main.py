@@ -1,4 +1,4 @@
-from pygame_joysticks import InputController as Handler
+from pygame_joysticks import XBoxExtend as Handler
 
 import pygame
 import os
@@ -54,6 +54,9 @@ class JoystickGui(Handler):
         hwnd = pygame.display.get_wm_info()["window"]
         win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE,
                                win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE) | win32con.WS_EX_LAYERED)
+        # set window top mose
+        win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
+                              win32con.SWP_NOOWNERZORDER | win32con.SWP_NOSIZE | win32con.SWP_NOMOVE)
         # Set window transparency color
         win32gui.SetLayeredWindowAttributes(hwnd, win32api.RGB(*fuchsia), 0, win32con.LWA_COLORKEY)
 
@@ -137,7 +140,7 @@ class JoystickGui(Handler):
     def draw_gui(self, l_arc_id, r_arc_id, l_keys, r_keys):
         self.screen.fill(fuchsia)
         # draw Left Axis
-        self.draw_panel(self.code_table.LNum, self.imc.start_arc(self.code_table.LNum),
+        self.draw_panel(self.code_table.L_NUM, self.imc.start_arc(self.code_table.L_NUM),
                         l_arc_id, GuiStyle.l_handle_color,
                         self.l_center[0], self.l_center[1],
                         self.gui_config['l_radius'],
@@ -150,7 +153,7 @@ class JoystickGui(Handler):
                            10)
 
         # draw Right Axis
-        self.draw_panel(self.code_table.RNum, self.imc.start_arc(self.code_table.RNum),
+        self.draw_panel(self.code_table.R_NUM, self.imc.start_arc(self.code_table.R_NUM),
                         r_arc_id, GuiStyle.r_handle_color,
                         self.r_center[0], self.r_center[1],
                         self.gui_config['r_radius'],

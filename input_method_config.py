@@ -40,5 +40,5 @@ class BasicConfig:
 if __name__ == '__main__':
     ct = CodeTable()
     bc = BasicConfig()
-    print(ct.get_code(*bc.get_arcs(0.4, 0.2, 0.7, 0.1, ct.LNum, ct.RNum)))
-    print(ct.get_recommend(*bc.get_arcs(0.4, 0.2, 0.7, 0.1, ct.LNum, ct.RNum)))
+    print(ct.get_code(*bc.get_arcs(0.4, 0.2, 0.7, 0.1, ct.L_NUM, ct.R_NUM)))
+    print(ct.get_recommend(*bc.get_arcs(0.4, 0.2, 0.7, 0.1, ct.L_NUM, ct.R_NUM)))

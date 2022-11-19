@@ -61,8 +61,8 @@ class SingleEnglishCode:
     [Space, ",", ., ?, ;, ', Enter, Backspace, Tab]
     """
     # TODO: consider Bi-gram probability
-    LNum = 4
-    RNum = 8
+    L_NUM = 4
+    R_NUM = 8
     special_code = {
         # Left Thumb Down for number
         (3, 8): '1', (3, 1): '2', (3, 2): '3',
@@ -70,15 +70,15 @@ class SingleEnglishCode:
         (3, 6): '7', (3, 5): '8', (3, 4): '9',
 
         (0, 0): 'Space',
-        (1, 0): 'Enter',
-        (2, 0): 'Backspace',
-        (4, 0): 'Tab',
+        (1, 0): ',',
+        (2, 0): '.',
+        (4, 0): ';',
 
         # Right Thumb Down for special keys
         (0, 5): '0',
-        (1, 5): ',',
-        (2, 5): '.',
-        (4, 5): ';',
+        (1, 5): ':',
+        (2, 5): '=',
+        (4, 5): '-',
     }
     Frq_single_gram = "etaoins"
     freq_mappings = {
@@ -90,9 +90,12 @@ class SingleEnglishCode:
         'n': ['m', 'l', 'r'],
         's': ['c', '?', "'"]
     }
+    MOTION = [Key.right, Key.down, Key.left, Key.up]
 
     def __init__(self):
-        self.trigger_mapping = ("Shift", None)
+        self.bumper_mapping = (Key.ctrl, Key.alt)
+        self.LT_mapping = Key.shift
+        self.right_mapping = [Key.space, Key.enter, Key.backspace, Key.tab]
 
         self.code = self.special_code.copy()
         no_assign = [1, 2, 3, 4, 6, 7, 8]
@@ -106,7 +109,7 @@ class SingleEnglishCode:
         """
         return key in (x, y)
         """
-        assert x <= self.LNum and y <= self.RNum
+        assert x <= self.L_NUM and y <= self.R_NUM
         key = self.code[(x, y)]
         return key_table[key] if key in key_table else key
 
@@ -115,5 +118,12 @@ class SingleEnglishCode:
         return the code table for (x, y)
         """
         code = self.code
-        return [code[(l, y)] for l in range(self.LNum + 1)], \
-               [code[(x, r)] for r in range(self.RNum + 1)]
+        return [code[(l, y)] for l in range(self.L_NUM + 1)], \
+               [code[(x, r)] for r in range(self.R_NUM + 1)]
+
+
+class MotionMode(SingleEnglishCode):
+    L_NUM = 4
+    R_NUM = 4
+
+
