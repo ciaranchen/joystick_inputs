@@ -1,6 +1,4 @@
-from pygame_joysticks import JoyConHandler as Handler
-from input_method_config import BasicConfig as IMC
-from code_table import SingleEnglishCode as CodeTable
+from pygame_joysticks import InputController as Handler
 
 import pygame
 import os
@@ -9,7 +7,6 @@ import win32api
 import win32con
 import win32gui
 from ctypes import windll
-from pynput.keyboard import Controller
 
 os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
 
@@ -19,7 +16,7 @@ dark = (0, 0, 0)
 
 class GuiStyle:
     # base color
-    base_color = 0x808080  # white
+    base_color = 0x808080  # Grey
     font_color = (0, 0, 0)
 
     # axis color
@@ -29,16 +26,11 @@ class GuiStyle:
 
 class JoystickGui(Handler):
     def __init__(self):
-        pygame.init()
         super().__init__()
-        self.window_size = 400
-
-        self.keyboard = Controller()
+        self.start_pos = None
         self.mouse_pressed = False
-        self.start_pos = (0, 0)
-
-        self.code_table = CodeTable()
-        self.imc = IMC(self.code_table)
+        self.window_coords = [0, 0]
+        self.window_size = 400
 
         self.font = pygame.font.Font(None, 30)
         self.gui_config = {
@@ -51,6 +43,9 @@ class JoystickGui(Handler):
 
         self.gui_config['l_inner_radius'] = self.gui_config['l_radius'] * self.imc.arc_threshold
         self.gui_config['r_inner_radius'] = self.gui_config['r_radius'] * self.imc.arc_threshold
+
+        self.l_center = (self.window_size / 2, self.window_size / 2)
+        self.r_center = (self.window_size * 3 / 2 + self.gui_config['panel_gap'], self.window_size / 2)
 
         self.screen = pygame.display.set_mode(
             (self.window_size * 2 + self.gui_config['panel_gap'], self.window_size),
@@ -68,20 +63,12 @@ class JoystickGui(Handler):
         ny = y * math.sqrt(1 - x * x / 2)
         return nx, ny
 
-    def moveWin(self, coordinates):
-        # the handle to the window
-        hwnd = pygame.display.get_wm_info()['window']
-
-        # user32.MoveWindow also recieves a new size for the window
-        w, h = pygame.display.get_surface().get_size()
-        windll.user32.MoveWindow(hwnd, -coordinates[0], -coordinates[1], w, h, False)
-
     def draw_panel(self, arc_number, start_arc, number, choice_color, cx, cy, r1, r2, texts, angle_gap):
         pygame.draw.circle(self.screen, GuiStyle.base_color, (cx, cy), r2)
         if number == 0:
             pygame.draw.circle(self.screen, choice_color, (cx, cy), r2, width=5)
-        textImage = self.font.render(texts[0], True, GuiStyle.base_color)
-        self.screen.blit(textImage, (cx, cy))
+        text_image = self.font.render(texts[0], True, GuiStyle.base_color)
+        self.screen.blit(text_image, (cx, cy))
         for i in range(arc_number):
             a1 = start_arc + i * math.pi * 2 / arc_number
             a2 = a1 + math.pi * 2 / arc_number
@@ -117,103 +104,65 @@ class JoystickGui(Handler):
         # Text
         point_4 = [p1[0], p1[-1], p2[-1], p2[0]]
         point_xy = (sum([p[0] for p in point_4]) / 4, sum([p[1] for p in point_4]) / 4)
-        textImage = self.font.render(text, True, GuiStyle.font_color)
-        self.screen.blit(textImage, point_xy)
+        text_image = self.font.render(text, True, GuiStyle.font_color)
+        self.screen.blit(text_image, point_xy)
 
-    def draw_gui(self):
-        self.mouse_pressed = False
-        start_pos = []
+    def gui_init(self):
+        self.window_coords = [0, 0]
+        self.refresh_win_location(self.window_coords)
 
-        def press_key(lx, ly, rx, ry):
-            la, ra = self.imc.get_arcs(lx, ly, rx, ry)
-            code = self.code_table.get_code(la, ra)
-            self.keyboard.tap(code)
+    @staticmethod
+    def refresh_win_location(coordinates):
+        # the handle to the window
+        hwnd = pygame.display.get_wm_info()['window']
 
-        self.screen.set_alpha(128)
-        l_center = (self.window_size / 2, self.window_size / 2)
-        r_center = (self.window_size * 3 / 2 + self.gui_config['panel_gap'], self.window_size / 2)
+        # user32.MoveWindow also recieves a new size for the window
+        w, h = pygame.display.get_surface().get_size()
+        windll.user32.MoveWindow(hwnd, -coordinates[0], -coordinates[1], w, h, False)
 
-        clock = pygame.time.Clock()
-        joysticks = {}
-        window_coords = [0, 0]
-        self.moveWin(window_coords)
+    def handle_mouse(self, events):
+        for event in events:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                self.mouse_pressed = True
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.type == pygame.MOUSEMOTION:
+                if self.mouse_pressed:
+                    new_pos = pygame.mouse.get_pos()
+                    self.window_coords[0] += self.start_pos[0] - new_pos[0]
+                    self.window_coords[1] += self.start_pos[1] - new_pos[1]
+                    self.refresh_win_location(self.window_coords)
+            elif event.type == pygame.MOUSEBUTTONUP:
+                self.mouse_pressed = False
 
-        while True:
-            self.screen.fill(fuchsia)
-            events = pygame.event.get()
-            # print(events)
-            for event in events:
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    exit()
+    def draw_gui(self, l_arc_id, r_arc_id, l_keys, r_keys):
+        self.screen.fill(fuchsia)
+        # draw Left Axis
+        self.draw_panel(self.code_table.LNum, self.imc.start_arc(self.code_table.LNum),
+                        l_arc_id, GuiStyle.l_handle_color,
+                        self.l_center[0], self.l_center[1],
+                        self.gui_config['l_radius'],
+                        self.gui_config['l_inner_radius'],
+                        l_keys, self.gui_config['angle_gap'])
+        lnx, lny = self.cube2circle(self.lx, self.ly)
+        pygame.draw.circle(self.screen, GuiStyle.l_handle_color,
+                           (self.l_center[0] + lnx * self.gui_config['l_radius'],
+                            self.l_center[1] + lny * self.gui_config['l_radius']),
+                           10)
 
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    exit()
-
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    self.mouse_pressed = True
-                    start_pos = pygame.mouse.get_pos()
-                elif event.type == pygame.MOUSEMOTION:
-                    if self.mouse_pressed:
-                        new_pos = pygame.mouse.get_pos()
-                        window_coords[0] += start_pos[0] - new_pos[0]
-                        window_coords[1] += start_pos[1] - new_pos[1]
-                        self.moveWin(window_coords)
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    self.mouse_pressed = False
-
-                # Handle hotplugging
-                if event.type == pygame.JOYDEVICEADDED:
-                    # This event will be generated when the program starts for every
-                    # joystick, filling up the list without needing to create them manually.
-                    joy = pygame.joystick.Joystick(event.device_index)
-                    joysticks[joy.get_instance_id()] = joy
-                    print(f"Joystick {joy.get_instance_id()} connencted")
-
-                if event.type == pygame.JOYDEVICEREMOVED:
-                    del joysticks[event.instance_id]
-                    print(f"Joystick {event.instance_id} disconnected")
-
-            self.refresh(joysticks)
-
-            if self.binding:
-                self.handle_axis(events)
-                self.handle_trigger(events, press_key)
-
-            l_arc_id, r_arc_id = self.imc.get_arcs(self.lx, self.ly, self.rx, self.ry)
-            l_keys, r_keys = self.code_table.get_recommend(l_arc_id, r_arc_id)
-
-            # draw Left Axis
-            self.draw_panel(self.code_table.LNum, self.imc.start_arc(self.code_table.LNum),
-                            l_arc_id, GuiStyle.l_handle_color,
-                            l_center[0], l_center[1],
-                            self.gui_config['l_radius'],
-                            self.gui_config['l_inner_radius'],
-                            l_keys, self.gui_config['angle_gap'])
-            lnx, lny = self.cube2circle(self.lx, self.ly)
-            pygame.draw.circle(self.screen, GuiStyle.l_handle_color,
-                               (l_center[0] + lnx * self.gui_config['l_radius'],
-                                l_center[1] + lny * self.gui_config['l_radius']),
-                               10)
-
-            # draw Right Axis
-            self.draw_panel(self.code_table.RNum, self.imc.start_arc(self.code_table.RNum),
-                            r_arc_id, GuiStyle.r_handle_color,
-                            r_center[0], r_center[1],
-                            self.gui_config['r_radius'],
-                            self.gui_config['r_inner_radius'],
-                            r_keys, self.gui_config['angle_gap'])
-            rnx, rny = self.cube2circle(self.rx, self.ry)
-            pygame.draw.circle(self.screen, GuiStyle.r_handle_color,
-                               (r_center[0] + rnx * self.gui_config['r_radius'],
-                                r_center[1] + rny * self.gui_config['r_radius']),
-                               10)
-
-            pygame.display.flip()
-            clock.tick(30)
+        # draw Right Axis
+        self.draw_panel(self.code_table.RNum, self.imc.start_arc(self.code_table.RNum),
+                        r_arc_id, GuiStyle.r_handle_color,
+                        self.r_center[0], self.r_center[1],
+                        self.gui_config['r_radius'],
+                        self.gui_config['r_inner_radius'],
+                        r_keys, self.gui_config['angle_gap'])
+        rnx, rny = self.cube2circle(self.rx, self.ry)
+        pygame.draw.circle(self.screen, GuiStyle.r_handle_color,
+                           (self.r_center[0] + rnx * self.gui_config['r_radius'],
+                            self.r_center[1] + rny * self.gui_config['r_radius']),
+                           10)
 
 
 if __name__ == '__main__':
     jg = JoystickGui()
-    jg.draw_gui()
+    jg.main()

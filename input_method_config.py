@@ -9,9 +9,6 @@ from code_table import SingleEnglishCode as CodeTable
 class BasicConfig:
     arc_threshold = 0.3
 
-    def __init__(self, code_table):
-        self.ct = code_table
-
     @staticmethod
     def start_arc(num):
         return - math.pi / num
@@ -34,14 +31,14 @@ class BasicConfig:
                 return i + 1
         return -1
 
-    def get_arcs(self, lx, ly, rx, ry):
-        la = BasicConfig.which_arc(lx, ly, self.ct.LNum, self.start_arc(self.ct.LNum))
-        ra = BasicConfig.which_arc(rx, ry, self.ct.RNum, self.start_arc(self.ct.RNum))
+    def get_arcs(self, lx, ly, rx, ry, l_num, r_num):
+        la = BasicConfig.which_arc(lx, ly, l_num, self.start_arc(l_num))
+        ra = BasicConfig.which_arc(rx, ry, r_num, self.start_arc(r_num))
         return la, ra
 
 
 if __name__ == '__main__':
     ct = CodeTable()
-    bc = BasicConfig(ct)
-    print(ct.get_code(*bc.get_arcs(0.4, 0.2, 0.7, 0.1)))
-    print(ct.get_recommend(*bc.get_arcs(0.4, 0.2, 0.7, 0.1)))
+    bc = BasicConfig()
+    print(ct.get_code(*bc.get_arcs(0.4, 0.2, 0.7, 0.1, ct.LNum, ct.RNum)))
+    print(ct.get_recommend(*bc.get_arcs(0.4, 0.2, 0.7, 0.1, ct.LNum, ct.RNum)))
