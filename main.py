@@ -1,4 +1,5 @@
-from pygame_joysticks import XBoxExtend as Handler
+# coding: utf-8
+from pygame_joysticks import JoyConExtend as Handler
 
 import pygame
 import os

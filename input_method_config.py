@@ -11,7 +11,7 @@ class BasicConfig:
 
     @staticmethod
     def start_arc(num):
-        return - math.pi / num
+        return - math.pi / num - math.pi / 2
 
     @staticmethod
     def arc_distance(x, y):
