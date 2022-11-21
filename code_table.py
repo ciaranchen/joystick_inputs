@@ -90,7 +90,7 @@ class SingleEnglishCode:
         'n': ['m', 'l', 'r'],
         's': ['c', '?', "'"]
     }
-    MOTION = [Key.right, Key.down, Key.left, Key.up]
+    MOTION = [Key.up, Key.right, Key.down, Key.left]
 
     def __init__(self):
         self.bumper_mapping = (Key.ctrl, Key.alt)

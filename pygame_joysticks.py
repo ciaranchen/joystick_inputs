@@ -135,11 +135,6 @@ class XBoxHandler(Handler):
                 if e.button < 4:
                     # map single key.
                     self.keyboard.tap(self.code_table.right_mapping[e.button])
-                if e.button == 4 or e.button == 5:
-                    self.keyboard.press(self.code_table.bumper_mapping[e.button - 4])
-            if e.type == pygame.JOYBUTTONUP and e.instance_id == self.joy.get_instance_id():
-                if e.button == 4 or e.button == 5:
-                    self.keyboard.release(self.code_table.bumper_mapping[e.button - 4])
 
     def handle_trigger(self, events):
         for e in events:
@@ -161,6 +156,12 @@ class XBoxHandler(Handler):
                         self.press_key(la, ra)
                     if self.RT_pressed and e.value < self.TRIGGER_THRESHOLD:
                         self.RT_pressed = False
+            if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.joy.get_instance_id():
+                if e.button == 4 or e.button == 5:
+                    self.keyboard.press(self.code_table.bumper_mapping[e.button - 4])
+            if e.type == pygame.JOYBUTTONUP and e.instance_id == self.joy.get_instance_id():
+                if e.button == 4 or e.button == 5:
+                    self.keyboard.release(self.code_table.bumper_mapping[e.button - 4])
 
     def handle_axis(self, events):
         for e in events:
@@ -248,6 +249,11 @@ class XBoxExtend(XBoxHandler):
         super().__init__()
         self.mode = JoyMode.NORMAL_MODE
         self.motion_pressed = None
+        self.mouse = Mouse()
+        self.mouse_orient = (0, 0)
+        self.mouse_acceleration = (0.3, 0.1)
+        self.mouse_tick = [0, 0]
+        self.mouse_speed = [0, 0]
 
     def handle_button(self, events):
         super().handle_button(events)
@@ -260,6 +266,10 @@ class XBoxExtend(XBoxHandler):
                 if hy == -1:
                     print("Mouse mode...")
                     self.mode = JoyMode.MOUSE_MODE
+                    self.mouse_orient = (0, 0)
+                    self.mouse_acceleration = (0.03, 0.01)
+                    self.mouse_tick = [0, 0]
+                    self.mouse_speed = [0, 0]
                 if hy == 0 and hx == 0:
                     print("Normal mode ...")
                     self.mode = JoyMode.NORMAL_MODE
@@ -282,7 +292,53 @@ class XBoxExtend(XBoxHandler):
                         else:
                             self.motion_pressed = self.code_table.MOTION[ra - 1]
         if self.mode == JoyMode.MOUSE_MODE:
-            pass
+            for e in events:
+                if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
+                    if e.axis == self.LR_AXIS[2] or e.axis == self.LR_AXIS[3]:
+                        rx, ry = self.joy.get_axis(self.LR_AXIS[2]), self.joy.get_axis(self.LR_AXIS[3])
+                        ox, oy = self.mouse_orient
+                        self.mouse_orient = (rx, ry)
+                        sign = lambda a: (a > 0) - (a < 0)
+                        self.mouse_tick[0] = 0 if sign(ox) != sign(rx) else self.mouse_tick[0] + 1
+                        self.mouse_tick[1] = 0 if sign(oy) != sign(ry) else self.mouse_tick[1] + 1
+                        for i in range(2):
+                            self.mouse_speed[i] = self.mouse_speed[i] + self.mouse_tick[i] * self.mouse_acceleration[i]
+                    if e.axis == self.LR_AXIS[0] or e.axis == self.LR_AXIS[1]:
+                        lx, ly = self.joy.get_axis(self.LR_AXIS[0]), self.joy.get_axis(self.LR_AXIS[1])
+                        self.mouse.scroll(0, lx)
+                        self.mouse.scroll(1, ly)
+            self.mouse.move(self.mouse_speed[0] * self.mouse_orient[0], self.mouse_speed[1] * self.mouse_orient[1])
+
+    def handle_trigger(self, events):
+        if self.mode == JoyMode.NORMAL_MODE:
+            super().handle_trigger(events)
+        if self.mode == JoyMode.MOUSE_MODE:
+            for e in events:
+                if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
+                    if e.axis == 4:
+                        if not self.LT_pressed and e.value >= self.TRIGGER_THRESHOLD:
+                            self.mouse.press(Button.left)
+                            self.LT_pressed = True
+                        if self.LT_pressed and e.value < self.TRIGGER_THRESHOLD:
+                            self.mouse.release(Button.left)
+                            self.LT_pressed = False
+                    elif e.axis == 5:
+                        if not self.RT_pressed and e.value >= self.TRIGGER_THRESHOLD:
+                            self.mouse.press(Button.right)
+                            self.RT_pressed = True
+                        if self.RT_pressed and e.value < self.TRIGGER_THRESHOLD:
+                            self.mouse.release(Button.right)
+                            self.RT_pressed = False
+                if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.joy.get_instance_id():
+                    if e.button == 4:
+                        self.mouse.press(Button.left)
+                    if e.button == 5:
+                        self.mouse.press(Button.right)
+                if e.type == pygame.JOYBUTTONUP and e.instance_id == self.joy.get_instance_id():
+                    if e.button == 4:
+                        self.mouse.release(Button.left)
+                    if e.button == 5:
+                        self.mouse.release(Button.right)
 
 
 class JoyConExtend(JoyConHandler):
@@ -317,13 +373,13 @@ class JoyConExtend(JoyConHandler):
                     if e.instance_id == self.r_joy.get_instance_id():
                         rx, ry = -e.value[1], -e.value[0]
                         if rx == -1:
-                            self.keyboard.tap(self.code_table.MOTION[2])
-                        elif rx == 1:
-                            self.keyboard.tap(self.code_table.MOTION[0])
-                        if ry == -1:
                             self.keyboard.tap(self.code_table.MOTION[3])
-                        elif ry == 1:
+                        elif rx == 1:
                             self.keyboard.tap(self.code_table.MOTION[1])
+                        if ry == -1:
+                            self.keyboard.tap(self.code_table.MOTION[0])
+                        elif ry == 1:
+                            self.keyboard.tap(self.code_table.MOTION[2])
         elif self.mode == JoyMode.MOUSE_MODE:
             for e in events:
                 if e.type == pygame.JOYHATMOTION and e.instance_id == self.r_joy.get_instance_id():
@@ -343,18 +399,22 @@ class JoyConExtend(JoyConHandler):
         self.mouse.move(self.mouse_speed[0] * self.mouse_orient[0], self.mouse_speed[1] * self.mouse_orient[1])
 
     def handle_trigger(self, events):
-        if self.mode != JoyMode.MOUSE_MODE:
+        if self.mode == JoyMode.NORMAL_MODE:
             super().handle_trigger(events)
-        else:
+        elif self.mode == JoyMode.MOUSE_MODE:
             for e in events:
                 if e.type == pygame.JOYBUTTONDOWN:
-                    if e.instance_id == self.l_joy.get_instance_id():
-                        # Left trigger
-                        if e.button == 15 or e.button == 14:
-                            self.mouse.click(Button.left)
-                    if e.instance_id == self.r_joy.get_instance_id():
-                        if e.button == 15 or e.button == 14:
-                            self.mouse.click(Button.right)
+                    if e.button == 15 or e.button == 14:
+                        if e.instance_id == self.l_joy.get_instance_id():
+                            self.mouse.press(Button.left)
+                        if e.instance_id == self.r_joy.get_instance_id():
+                            self.mouse.press(Button.right)
+                if e.type == pygame.JOYBUTTONUP:
+                    if e.button == 15 or e.button == 14:
+                        if e.instance_id == self.l_joy.get_instance_id():
+                            self.mouse.release(Button.left)
+                        if e.instance_id == self.r_joy.get_instance_id():
+                            self.mouse.release(Button.right)
 
 
 class ClickModeJoyCon(JoyConHandler):
