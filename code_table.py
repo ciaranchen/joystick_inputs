@@ -77,32 +77,18 @@ class SingleEnglishCode:
         (3, 8): '1', (3, 1): '2', (3, 2): '3',
         (3, 7): '4', (3, 0): '5', (3, 3): '6',
         (3, 6): '7', (3, 5): '8', (3, 4): '9',
-
-        # Right Thumb center for frequently used code.
-        (0, 0): 'Space',
-        (1, 0): ',',
-        (2, 0): '.',
-        (4, 0): ';',
-
-        # Right Thumb Down for special keys
-        (0, 5): '0',
-        (1, 5): ':',
-        (2, 5): "'",
-        (4, 5): '/',
     }
 
     indexs = [
-        # Left Thumb Down for number
-        [[3], list(range(9))],
         # Right Thumb for special keys
-        [[0, 1, 2, 4], [0, 5]],
-        [[1, 2, 3, 4, 6, 7, 8], [0, 1, 2, 4]],
+        [[0, 5], [0, 1, 2, 4], True],
+        # Right Thumb for English keys
+        [[1, 2, 3, 4, 6, 7, 8], [0, 1, 2, 4], True],
     ]
     configs = [
-        list('123456789'),
         [
-            "space", ',', '.', ';',
-            "0", ':', "'", '/'
+            ["space", ',', '.', ';'],
+            ["0", ':', "'", '/']
         ],
         {
             'e': ['z', 'j', 'q'],
@@ -121,22 +107,21 @@ class SingleEnglishCode:
         self.LT_mapping = Key.shift
         self.right_mapping = [Key.space, Key.enter, Key.backspace, Key.tab]
 
-        self.code = {}
+        self.code = self.special_code.copy()
         for index, data in zip(self.indexs, self.configs):
             # print(index)
-            fi1, fi2 = index
+            fi1, fi2, vertical = index
             if isinstance(data, list):
                 for i1, f1 in enumerate(fi1):
                     for i2, f2 in enumerate(fi2):
-                        print(f1, f2)
-                        self.code[(f1, f2)] = data[i1 * len(fi2) + i2]
-
+                        index = (f1, f2) if not vertical else (f2, f1)
+                        self.code[index] = data[i1][i2]
             elif isinstance(data, dict):
-                for i1, k in zip(fi1, data):
+                for f1, k in zip(fi1, data):
                     codes = [k] + data[k]
-                    for i2, c in zip(fi2, codes):
-                        print(i2, i1)
-                        self.code[(i2, i1)] = c
+                    for f2, c in zip(fi2, codes):
+                        index = (f1, f2) if not vertical else (f2, f1)
+                        self.code[index] = c
 
     def get_code(self, x: int, y: int) -> str or Key:
         """
@@ -160,34 +145,40 @@ class CodeExtension(SingleEnglishCode):
     R_NUM = 8
 
     special_code = {
-        # Left Thumb Down for number
-        (3, 8): '1', (3, 1): '2', (3, 2): '3',
-        (3, 7): '4', (3, 0): '5', (3, 3): '6',
-        (3, 6): '7', (3, 5): '8', (3, 4): '9',
-
-        # Right Thumb center for frequently used code.
-        (0, 0): 'Space',
-        (1, 0): ',',
-        (2, 0): '.',
-        (4, 0): ';',
-        (5, 0): '-',
-        (6, 0): '=',
-
-        (0, 5): '0',
-        (1, 5): ':',
-        (2, 5): "'",
-        (4, 5): '/',
-        (5, 5): '\\',
-        (6, 5): '`',
-
+        # numbers
+        (6, 8): '1', (6, 1): '2', (6, 2): '3',
+        (6, 7): '4', (6, 0): '5', (6, 3): '6',
+        (6, 6): '7', (6, 5): '8', (6, 4): '9',
     }
-    freq_index = [[1, 2, 3, 4, 6, 7, 8], [0, 4, 5, 1]]
-    freq_mappings = {
-        'e': ['z', 'j', 'q'],
-        't': ['v', 'k', 'd'],
-        'a': ['x', 'y', 'f'],
-        'o': ['g', 'b', 'h'],
-        'i': ['u', 'p', 'w'],
-        'n': ['m', 'l', 'r'],
-        's': ['c', '-', '=']
-    }
+
+    indexs = [
+        # Right Thumb for special keys
+        [[0, 5], [0, 1, 2, 3, 4, 5], True],
+        # Right Thumb for English keys
+        [[1, 2, 3, 4, 6, 7, 8], [0, 4, 5, 1], True],
+        [[1, 2, 3, 4, 6, 7, 8], [2, 3], True],
+    ]
+    configs = [
+        [
+            ["space", ',', '.', ';', ':', "'"],
+            ["0", '/', '\\', '`', 'menu', 'delete']
+        ],
+        {
+            'e': ['z', 'j', 'q'],
+            't': ['v', 'k', 'd'],
+            'a': ['x', 'y', 'f'],
+            'o': ['g', 'b', 'h'],
+            'i': ['u', 'p', 'w'],
+            'n': ['m', 'l', 'r'],
+            's': ['c', '-', '=']
+        },
+        [
+            ['Insert', 'Pause'],
+            ['Home', 'End'],
+            ['Page Up', 'Page Down'],
+            ['PrtSc', 'Scroll Lock'],
+            ['F1', 'F2'],
+            ['F3', 'F4'],
+            ['F5', 'F6']
+        ]
+    ]
