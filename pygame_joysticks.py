@@ -3,8 +3,8 @@ import enum
 import pygame
 from pynput.keyboard import Controller as Keyboard, Key
 from pynput.mouse import Controller as Mouse, Button
-from input_method_config import BasicInputMethodCore as InputMethodCore
-from code_table import SingleEnglishCode as CodeTable
+from input_method_config import IMCoreForAlternativeSix as InputMethodCore
+from code_table import CodeExtension as CodeTable
 
 
 def limit_to(number, lower, upper):
