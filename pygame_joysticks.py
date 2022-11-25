@@ -1,10 +1,11 @@
 # coding: utf-8
 import enum
+from abc import ABCMeta, abstractmethod
 import pygame
-from pynput.keyboard import Controller as Keyboard, Key
-from pynput.mouse import Controller as Mouse, Button
-from input_method_config import IMCoreForAlternativeSix as InputMethodCore
-from code_table import CodeExtension as CodeTable
+from pynput.keyboard import Key
+from pynput.mouse import Button
+
+from input_method_config import BasicInputMethodCore
 
 
 def limit_to(number, lower, upper):
@@ -21,90 +22,49 @@ class JoyMode(enum.Enum):
     MOUSE_MODE = 2
 
 
-class Handler:
-    """
-    Base class for handler
-    """
-
+class JoystickEventHandler(metaclass=ABCMeta):
     def __init__(self):
-        self.code_table = CodeTable()
-        self.imc = InputMethodCore()
-        self.keyboard = Keyboard()
         self.binding = False
-        self.lx, self.ly, self.rx, self.ry = 0, 0, 0, 0
 
-        pygame.init()
-
-    def press_key(self, la, ra):
-        print(la, ra, self.code_table.code[la, ra])
-        code = self.code_table.get_code(la, ra)
-        self.keyboard.tap(code)
-
-    def refresh(self, joysticks):
+    @classmethod
+    def joy_add(cls, joy):
+        """
+        bind joystick while JOY DEVICE ADDED
+        """
         raise NotImplementedError
 
-    def handle_button(self, events):
+    @abstractmethod
+    def joy_del(self, event):
+        """
+        remove binding of joystick while JOY DEVICE REMOVED
+        """
         raise NotImplementedError
 
-    def handle_trigger(self, events):
-        pass
-
-    def handle_axis(self, events):
+    @abstractmethod
+    def handle_button(self, events, keyboard, code_table):
         raise NotImplementedError
 
-    def main(self):
-        self.gui_init()
-        clock = pygame.time.Clock()
-        joysticks = {}
-
-        while True:
-            events = pygame.event.get()
-            # print(events)
-            for event in events:
-                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                    pygame.quit()
-                    exit()
-
-                # Handle hotplugging
-                if event.type == pygame.JOYDEVICEADDED:
-                    # This event will be generated when the program starts for every
-                    # joystick, filling up the list without needing to create them manually.
-                    joy = pygame.joystick.Joystick(event.device_index)
-                    joysticks[joy.get_instance_id()] = joy
-                    print(f"Joystick {joy.get_instance_id()} connencted")
-
-                if event.type == pygame.JOYDEVICEREMOVED:
-                    del joysticks[event.instance_id]
-                    print(f"Joystick {event.instance_id} disconnected")
-
-            self.refresh(joysticks)
-            self.handle_mouse(events)
-
-            self.handle_button(events)
-            if self.binding:
-                self.handle_axis(events)
-                self.handle_trigger(events)
-
-            l_arc_id, r_arc_id = self.imc.get_arcs(self.lx, self.ly, self.rx, self.ry,
-                                                   self.code_table.L_NUM, self.code_table.R_NUM)
-            l_keys, r_keys = self.code_table.get_recommend(l_arc_id, r_arc_id)
-
-            self.draw_gui(l_arc_id, r_arc_id, l_keys, r_keys)
-
-            pygame.display.flip()
-            clock.tick(30)
-
-    def gui_init(self):
+    @abstractmethod
+    def handle_trigger(self, events, keyboard, code_table, press_key):
         raise NotImplementedError
 
-    def draw_gui(self, l_arc_id, r_arc_id, l_keys, r_keys):
-        raise NotImplementedError
-
-    def handle_mouse(self, events):
+    @abstractmethod
+    def handle_axis(self, events, keyboard, code_table, axis):
         raise NotImplementedError
 
 
-class XBoxHandler(Handler):
+class XBoxEventHandler(JoystickEventHandler):
+    @classmethod
+    def joy_add(cls, joy):
+        if joy.get_name() != "Xbox 360 Controller":
+            return None
+        res = cls()
+        res.joy = joy
+        return res
+
+    def joy_del(self, event):
+        return event.instance_id == self.joy.get_instance_id()
+
     LR_AXIS = (0, 1, 2, 3)
     TRIGGER_THRESHOLD = 0.3
     AXIS_THRESHOLD = 0.3
@@ -113,87 +73,97 @@ class XBoxHandler(Handler):
         super().__init__()
 
         self.joy = None
-        self.LT_pressed = False
-        self.RT_pressed = False
+        self.trigger_pressed = [False, False]
 
-    def refresh(self, joysticks, name="Xbox 360 Controller"):
-        if self.binding:
-            if self.joy.get_id() not in joysticks:
-                self.binding = False
-                return
-        else:
-            for joy in joysticks.values():
-                if joy.get_name() == name:
-                    self.joy = joy
-                    self.binding = True
-                    return
-
-    def handle_button(self, events):
+    def handle_button(self, events, keyboard, code_table):
         for e in events:
             if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.joy.get_instance_id():
                 print(e.button)
                 if e.button < 4:
                     # map single key.
-                    self.keyboard.tap(self.code_table.right_mapping[e.button])
+                    keyboard.tap(code_table.right_mapping[e.button])
 
-    def handle_trigger(self, events):
+    def trigger_handler(self, i, value, cb1, cb2):
+        if not self.trigger_pressed[i] and value >= self.TRIGGER_THRESHOLD:
+            cb1(value)
+            self.trigger_pressed[i] = True
+        elif self.trigger_pressed[i] and value < self.TRIGGER_THRESHOLD:
+            cb2(value)
+            self.trigger_pressed[i] = False
+
+    def handle_trigger(self, events, keyboard, code_table, press_key):
         for e in events:
             if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
                 # Left Trigger mapping
                 if e.axis == 4:
-                    if not self.LT_pressed and e.value >= self.TRIGGER_THRESHOLD:
-                        self.keyboard.press(self.code_table.LT_mapping)
-                        self.LT_pressed = True
-                    if self.LT_pressed and e.value < self.TRIGGER_THRESHOLD:
-                        self.keyboard.release(self.code_table.LT_mapping)
-                        self.LT_pressed = False
+                    self.trigger_handler(0, e.value,
+                                         lambda _: keyboard.press(code_table.LT_mapping),
+                                         lambda _: keyboard.release(code_table.LT_mapping))
                 elif e.axis == 5:
-                    if not self.RT_pressed and e.value >= self.TRIGGER_THRESHOLD:
-                        self.RT_pressed = True
+                    def do_press_key(_):
                         lx, ly = self.joy.get_axis(self.LR_AXIS[0]), self.joy.get_axis(self.LR_AXIS[1])
                         rx, ry = self.joy.get_axis(self.LR_AXIS[2]), self.joy.get_axis(self.LR_AXIS[3])
-                        la, ra = self.imc.get_arcs(lx, ly, rx, ry, self.code_table.L_NUM, self.code_table.R_NUM)
-                        self.press_key(la, ra)
-                    if self.RT_pressed and e.value < self.TRIGGER_THRESHOLD:
-                        self.RT_pressed = False
+                        press_key(lx, ly, rx, ry)
+
+                    self.trigger_handler(1, e.value,
+                                         do_press_key,
+                                         lambda x: None)
             if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.joy.get_instance_id():
                 if e.button == 4 or e.button == 5:
-                    self.keyboard.press(self.code_table.bumper_mapping[e.button - 4])
+                    keyboard.press(code_table.bumper_mapping[e.button - 4])
             if e.type == pygame.JOYBUTTONUP and e.instance_id == self.joy.get_instance_id():
                 if e.button == 4 or e.button == 5:
-                    self.keyboard.release(self.code_table.bumper_mapping[e.button - 4])
+                    keyboard.release(code_table.bumper_mapping[e.button - 4])
 
-    def handle_axis(self, events):
+    def handle_axis(self, events, keyboard, code_table, axis):
         for e in events:
             if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
                 if e.axis == self.LR_AXIS[0]:
-                    self.lx = limit_to(e.value, -1, 1)
+                    axis['lx'] = limit_to(e.value, -1, 1)
                 elif e.axis == self.LR_AXIS[1]:
-                    self.ly = limit_to(e.value, -1, 1)
+                    axis['ly'] = limit_to(e.value, -1, 1)
                 elif e.axis == self.LR_AXIS[2]:
-                    self.rx = limit_to(e.value, -1, 1)
+                    axis['rx'] = limit_to(e.value, -1, 1)
                 elif e.axis == self.LR_AXIS[3]:
-                    self.ry = limit_to(e.value, -1, 1)
+                    axis['ry'] = limit_to(e.value, -1, 1)
 
 
-class JoyConHandler(Handler):
+class JoyConEventHandler(JoystickEventHandler):
+    _instance = None
+
+    @classmethod
+    def singleton(cls):
+        if not hasattr(cls, "_instance"):
+            cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def joy_add(cls, joy):
+        print("joy con ")
+        if joy.get_name() == "Wireless Gamepad":
+            print('Singleton')
+            res = cls.singleton()
+            if res.l_joy and res.l_joy != joy:
+                res.r_joy = joy
+            else:
+                res.l_joy = joy
+            return res
+        else:
+            return None
+
+    def joy_del(self, event):
+        if self.l_joy.get_instance_id() == event.instance_id:
+            self.l_joy = None
+        elif self.r_joy.get_instance_id() == event.instance_id:
+            self.r_joy = None
+        return self.r_joy is None and self.r_joy is None
+
     def __init__(self):
         super().__init__()
         self.l_joy = None
         self.r_joy = None
 
-    def refresh(self, joysticks):
-        if self.binding:
-            pass
-        else:
-            # TODO: fixme.
-            if len(joysticks) == 2:
-                self.r_joy, self.l_joy = joysticks.values()
-                self.binding = True
-                print("Binding: ", self.binding)
-                return
-
-    def handle_button(self, events):
+    def handle_button(self, events, keyboard, code_table):
         for e in events:
             if e.type == pygame.JOYBUTTONDOWN:
                 print(e.instance_id, e.button)
@@ -203,60 +173,71 @@ class JoyConHandler(Handler):
                     self.r_joy = pygame.joystick.Joystick(e.instance_id)
                 if e.instance_id == self.r_joy.get_instance_id():
                     if e.button < 4:
-                        self.keyboard.tap(self.code_table.right_mapping[[1, 3, 0, 2][e.button]])
+                        keyboard.tap(code_table.right_mapping[[1, 3, 0, 2][e.button]])
                 if e.button == 12:
-                    self.keyboard.tap(Key.esc)
+                    keyboard.tap(Key.esc)
 
-    def handle_trigger(self, events):
+    def handle_trigger(self, events, keyboard, code_table, press_key):
         for e in events:
             if e.type == pygame.JOYBUTTONDOWN:
                 if e.instance_id == self.l_joy.get_instance_id():
                     # Left trigger
                     if e.button == 15:
-                        self.keyboard.press(self.code_table.LT_mapping)
+                        keyboard.press(code_table.LT_mapping)
                     elif e.button == 14:
-                        self.keyboard.press(self.code_table.bumper_mapping[0])
+                        keyboard.press(code_table.bumper_mapping[0])
                 if e.instance_id == self.r_joy.get_instance_id():
                     if e.button == 15:
                         _lx, _ly = self.l_joy.get_hat(0)
                         lx, ly = _ly, _lx
                         _rx, _ry = self.r_joy.get_hat(0)
                         rx, ry = -_ry, -_rx
-                        la, ra = self.imc.get_arcs(lx, ly, rx, ry, self.code_table.L_NUM, self.code_table.R_NUM)
-                        self.press_key(la, ra)
+                        press_key(lx, ly, rx, ry)
                     elif e.button == 14:
-                        self.keyboard.press(self.code_table.bumper_mapping[1])
+                        keyboard.press(code_table.bumper_mapping[1])
             if e.type == pygame.JOYBUTTONUP:
                 if e.instance_id == self.r_joy.get_instance_id() and e.button == 14:
-                    self.keyboard.release(self.code_table.bumper_mapping[1])
+                    keyboard.release(code_table.bumper_mapping[1])
                 elif e.instance_id == self.l_joy.get_instance_id():
                     if e.button == 15:
-                        self.keyboard.release(self.code_table.LT_mapping)
+                        keyboard.release(code_table.LT_mapping)
                     elif e.button == 14:
-                        self.keyboard.release(self.code_table.bumper_mapping[0])
+                        keyboard.release(code_table.bumper_mapping[0])
 
-    def handle_axis(self, events):
+    def handle_axis(self, events, keyboard, code_table, axis):
         for e in events:
             if e.type == pygame.JOYHATMOTION:
                 if e.instance_id == self.l_joy.get_instance_id():
-                    self.lx, self.ly = e.value[1], e.value[0]
+                    axis['lx'], axis['ly'] = e.value[1], e.value[0]
                 elif e.instance_id == self.r_joy.get_instance_id():
-                    self.rx, self.ry = -e.value[1], -e.value[0]
+                    axis['rx'], axis['ry'] = -e.value[1], -e.value[0]
 
 
-class XBoxExtend(XBoxHandler):
+class JoystickEventHandlerExtendMode(metaclass=ABCMeta):
     def __init__(self):
-        super().__init__()
         self.mode = JoyMode.NORMAL_MODE
         self.motion_pressed = None
-        self.mouse = Mouse()
         self.mouse_orient = (0, 0)
         self.mouse_acceleration = (0.3, 0.1)
         self.mouse_tick = [0, 0]
         self.mouse_speed = [0, 0]
 
-    def handle_button(self, events):
-        super().handle_button(events)
+    @abstractmethod
+    def ex_handle_axis(self, events, keyboard, code_table, axis, mouse):
+        pass
+
+    @abstractmethod
+    def ex_handle_trigger(self, events, keyboard, code_table, press_key, mouse):
+        pass
+
+
+class XBoxExtendMode(JoystickEventHandlerExtendMode, XBoxEventHandler):
+    def __init__(self):
+        super(XBoxExtendMode, self).__init__()
+        super(JoystickEventHandlerExtendMode, self).__init__()
+
+    def handle_button(self, events, keyboard, code_table):
+        super().handle_button(events, keyboard, code_table)
         for e in events:
             if e.type == pygame.JOYHATMOTION and e.instance_id == self.joy.get_instance_id():
                 hx, hy = e.value
@@ -275,22 +256,22 @@ class XBoxExtend(XBoxHandler):
                     self.mode = JoyMode.NORMAL_MODE
                 print(hx, hy)
 
-    def handle_axis(self, events):
+    def ex_handle_axis(self, events, keyboard, code_table, axis, mouse):
         if self.mode == JoyMode.NORMAL_MODE:
-            super().handle_axis(events)
+            super().handle_axis(events, keyboard, code_table, axis)
         if self.mode == JoyMode.MOTION_MODE:
             for e in events:
                 if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
                     if e.axis == self.LR_AXIS[2] or e.axis == self.LR_AXIS[3]:
                         rx, ry = self.joy.get_axis(self.LR_AXIS[2]), self.joy.get_axis(self.LR_AXIS[3])
-                        ra = self.imc.which_arc(rx, ry, 4, self.imc.start_arc(4))
+                        ra = BasicInputMethodCore.which_arc(rx, ry, 4)
                         # print('ra: ', ra)
                         if ra == 0:
                             if self.motion_pressed is not None:
-                                self.keyboard.tap(self.motion_pressed)
+                                keyboard.tap(self.motion_pressed)
                                 self.motion_pressed = None
                         else:
-                            self.motion_pressed = self.code_table.MOTION[ra - 1]
+                            self.motion_pressed = code_table.MOTION[ra - 1]
         if self.mode == JoyMode.MOUSE_MODE:
             for e in events:
                 if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
@@ -298,62 +279,54 @@ class XBoxExtend(XBoxHandler):
                         rx, ry = self.joy.get_axis(self.LR_AXIS[2]), self.joy.get_axis(self.LR_AXIS[3])
                         ox, oy = self.mouse_orient
                         self.mouse_orient = (rx, ry)
-                        sign = lambda a: (a > 0) - (a < 0)
+
+                        def sign(a):
+                            return (a > 0) - (a < 0)
+
                         self.mouse_tick[0] = 0 if sign(ox) != sign(rx) else self.mouse_tick[0] + 1
                         self.mouse_tick[1] = 0 if sign(oy) != sign(ry) else self.mouse_tick[1] + 1
                         for i in range(2):
                             self.mouse_speed[i] = self.mouse_speed[i] + self.mouse_tick[i] * self.mouse_acceleration[i]
                     if e.axis == self.LR_AXIS[0] or e.axis == self.LR_AXIS[1]:
                         lx, ly = self.joy.get_axis(self.LR_AXIS[0]), self.joy.get_axis(self.LR_AXIS[1])
-                        self.mouse.scroll(0, lx)
-                        self.mouse.scroll(1, ly)
-            self.mouse.move(self.mouse_speed[0] * self.mouse_orient[0], self.mouse_speed[1] * self.mouse_orient[1])
+                        mouse.scroll(0, lx)
+                        mouse.scroll(1, ly)
+            mouse.move(self.mouse_speed[0] * self.mouse_orient[0], self.mouse_speed[1] * self.mouse_orient[1])
 
-    def handle_trigger(self, events):
+    def ex_handle_trigger(self, events, keyboard, code_table, press_key, mouse):
+
         if self.mode == JoyMode.NORMAL_MODE:
-            super().handle_trigger(events)
+            super().handle_trigger(events, keyboard, code_table, press_key)
         if self.mode == JoyMode.MOUSE_MODE:
             for e in events:
                 if e.type == pygame.JOYAXISMOTION and e.instance_id == self.joy.get_instance_id():
                     if e.axis == 4:
-                        if not self.LT_pressed and e.value >= self.TRIGGER_THRESHOLD:
-                            self.mouse.press(Button.left)
-                            self.LT_pressed = True
-                        if self.LT_pressed and e.value < self.TRIGGER_THRESHOLD:
-                            self.mouse.release(Button.left)
-                            self.LT_pressed = False
+                        self.trigger_handler(0, e.value,
+                                             lambda _: mouse.press(Button.left),
+                                             lambda _: mouse.release(Button.left))
                     elif e.axis == 5:
-                        if not self.RT_pressed and e.value >= self.TRIGGER_THRESHOLD:
-                            self.mouse.press(Button.right)
-                            self.RT_pressed = True
-                        if self.RT_pressed and e.value < self.TRIGGER_THRESHOLD:
-                            self.mouse.release(Button.right)
-                            self.RT_pressed = False
+                        self.trigger_handler(1, e.value,
+                                             lambda _: mouse.press(Button.right),
+                                             lambda _: mouse.release(Button.right))
                 if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.joy.get_instance_id():
                     if e.button == 4:
-                        self.mouse.press(Button.left)
+                        mouse.press(Button.left)
                     if e.button == 5:
-                        self.mouse.press(Button.right)
+                        mouse.press(Button.right)
                 if e.type == pygame.JOYBUTTONUP and e.instance_id == self.joy.get_instance_id():
                     if e.button == 4:
-                        self.mouse.release(Button.left)
+                        mouse.release(Button.left)
                     if e.button == 5:
-                        self.mouse.release(Button.right)
+                        mouse.release(Button.right)
 
 
-class JoyConExtend(JoyConHandler):
+class JoyConExtendMode(JoystickEventHandlerExtendMode, JoyConEventHandler):
     def __init__(self):
-        super().__init__()
-        self.mode = JoyMode.NORMAL_MODE
-        self.motion_pressed = None
-        self.mouse = Mouse()
-        self.mouse_acceleration = (0.3, 0.1)
-        self.mouse_orient = (0, 0)
-        self.mouse_tick = [0, 0]
-        self.mouse_speed = [0, 0]
+        super(JoyConExtendMode, self).__init__()
+        super(JoystickEventHandlerExtendMode, self).__init__()
 
-    def handle_button(self, events):
-        super().handle_button(events)
+    def handle_button(self, events, keyboard, code_table):
+        super().handle_button(events, keyboard, code_table)
         for e in events:
             if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.l_joy.get_instance_id():
                 print(e)
@@ -364,22 +337,22 @@ class JoyConExtend(JoyConHandler):
             if e.type == pygame.JOYBUTTONUP and e.instance_id == self.l_joy.get_instance_id() and e.button < 4:
                 self.mode = JoyMode.NORMAL_MODE
 
-    def handle_axis(self, events):
+    def ex_handle_axis(self, events, keyboard, code_table, axis, mouse):
         if self.mode == JoyMode.NORMAL_MODE:
-            super().handle_axis(events)
+            super().handle_axis(events, keyboard, code_table, axis)
         elif self.mode == JoyMode.MOTION_MODE:
             for e in events:
                 if e.type == pygame.JOYHATMOTION:
                     if e.instance_id == self.r_joy.get_instance_id():
                         rx, ry = -e.value[1], -e.value[0]
                         if rx == -1:
-                            self.keyboard.tap(self.code_table.MOTION[3])
+                            keyboard.tap(code_table.MOTION[3])
                         elif rx == 1:
-                            self.keyboard.tap(self.code_table.MOTION[1])
+                            keyboard.tap(code_table.MOTION[1])
                         if ry == -1:
-                            self.keyboard.tap(self.code_table.MOTION[0])
+                            keyboard.tap(code_table.MOTION[0])
                         elif ry == 1:
-                            self.keyboard.tap(self.code_table.MOTION[2])
+                            keyboard.tap(code_table.MOTION[2])
         elif self.mode == JoyMode.MOUSE_MODE:
             for e in events:
                 if e.type == pygame.JOYHATMOTION and e.instance_id == self.r_joy.get_instance_id():
@@ -393,93 +366,93 @@ class JoyConExtend(JoyConHandler):
                 if e.type == pygame.JOYHATMOTION and e.instance_id == self.l_joy.get_instance_id():
                     x, y = e.value[1], e.value[0]
                     if x != 0:
-                        self.mouse.scroll(0, x)
+                        mouse.scroll(0, x)
                     if y != 0:
-                        self.mouse.scroll(1, -y)
-        self.mouse.move(self.mouse_speed[0] * self.mouse_orient[0], self.mouse_speed[1] * self.mouse_orient[1])
+                        mouse.scroll(1, -y)
+        mouse.move(self.mouse_speed[0] * self.mouse_orient[0], self.mouse_speed[1] * self.mouse_orient[1])
 
-    def handle_trigger(self, events):
+    def ex_handle_trigger(self, events, keyboard, code_table, press_key, mouse):
         if self.mode == JoyMode.NORMAL_MODE:
-            super().handle_trigger(events)
+            super().handle_trigger(events, keyboard, code_table, press_key)
         elif self.mode == JoyMode.MOUSE_MODE:
             for e in events:
                 if e.type == pygame.JOYBUTTONDOWN:
                     if e.button == 15 or e.button == 14:
                         if e.instance_id == self.l_joy.get_instance_id():
-                            self.mouse.press(Button.left)
+                            mouse.press(Button.left)
                         if e.instance_id == self.r_joy.get_instance_id():
-                            self.mouse.press(Button.right)
+                            mouse.press(Button.right)
                 if e.type == pygame.JOYBUTTONUP:
                     if e.button == 15 or e.button == 14:
                         if e.instance_id == self.l_joy.get_instance_id():
-                            self.mouse.release(Button.left)
+                            mouse.release(Button.left)
                         if e.instance_id == self.r_joy.get_instance_id():
-                            self.mouse.release(Button.right)
+                            mouse.release(Button.right)
 
 
-class ClickModeJoyCon(JoyConHandler):
-    def __init__(self):
-        super().__init__()
-        self.last_left = 0
-        self.last_right = 0
-
-    def press_key(self, la, ra):
-        print(self.last_left, self.last_right, self.code_table.code[self.last_left, self.last_right])
-        code = self.code_table.get_code(self.last_left, self.last_right)
-        self.keyboard.tap(code)
-        self.last_left, self.last_right = 0, 0
-
-    def handle_button(self, events):
-        super().handle_button(events)
-        for e in events:
-            if e.type == pygame.JOYBUTTONDOWN and e.button == 13:
-                if e.instance_id == self.l_joy.get_instance_id():
-                    self.last_left = 0
-                elif e.instance_id == self.r_joy.get_instance_id():
-                    self.last_right = 0
-
-    def main(self):
-        self.gui_init()
-        clock = pygame.time.Clock()
-        joysticks = {}
-
-        while True:
-            events = pygame.event.get()
-            # print(events)
-            for event in events:
-                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                    pygame.quit()
-                    exit()
-
-                # Handle hotplugging
-                if event.type == pygame.JOYDEVICEADDED:
-                    # This event will be generated when the program starts for every
-                    # joystick, filling up the list without needing to create them manually.
-                    joy = pygame.joystick.Joystick(event.device_index)
-                    joysticks[joy.get_instance_id()] = joy
-                    print(f"Joystick {joy.get_instance_id()} connencted")
-
-                if event.type == pygame.JOYDEVICEREMOVED:
-                    del joysticks[event.instance_id]
-                    print(f"Joystick {event.instance_id} disconnected")
-
-            self.refresh(joysticks)
-            self.handle_mouse(events)
-
-            self.handle_button(events)
-            if self.binding:
-                self.handle_axis(events)
-                self.handle_trigger(events)
-
-            l_arc_id, r_arc_id = self.imc.get_arcs(self.lx, self.ly, self.rx, self.ry,
-                                                   self.code_table.L_NUM, self.code_table.R_NUM)
-            if l_arc_id != 0:
-                self.last_left = l_arc_id
-            if r_arc_id != 0:
-                self.last_right = r_arc_id
-            l_keys, r_keys = self.code_table.get_recommend(self.last_left, self.last_right)
-
-            self.draw_gui(self.last_left, self.last_right, l_keys, r_keys)
-
-            pygame.display.flip()
-            clock.tick(30)
+# class ClickModeJoyCon(JoyConEventHandler):
+#     def __init__(self):
+#         super().__init__()
+#         self.last_left = 0
+#         self.last_right = 0
+#
+#     def press_key(self, la, ra):
+#         print(self.last_left, self.last_right, self.code_table.code[self.last_left, self.last_right])
+#         code = self.code_table.get_code(self.last_left, self.last_right)
+#         self.keyboard.tap(code)
+#         self.last_left, self.last_right = 0, 0
+#
+#     def handle_button(self, events):
+#         super().handle_button(events)
+#         for e in events:
+#             if e.type == pygame.JOYBUTTONDOWN and e.button == 13:
+#                 if e.instance_id == self.l_joy.get_instance_id():
+#                     self.last_left = 0
+#                 elif e.instance_id == self.r_joy.get_instance_id():
+#                     self.last_right = 0
+#
+#     def main(self):
+#         self.gui_init()
+#         clock = pygame.time.Clock()
+#         joysticks = {}
+#
+#         while True:
+#             events = pygame.event.get()
+#             # print(events)
+#             for event in events:
+#                 if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+#                     pygame.quit()
+#                     exit()
+#
+#                 # Handle hotplugging
+#                 if event.type == pygame.JOYDEVICEADDED:
+#                     # This event will be generated when the program starts for every
+#                     # joystick, filling up the list without needing to create them manually.
+#                     joy = pygame.joystick.Joystick(event.device_index)
+#                     joysticks[joy.get_instance_id()] = joy
+#                     print(f"Joystick {joy.get_instance_id()} connencted")
+#
+#                 if event.type == pygame.JOYDEVICEREMOVED:
+#                     del joysticks[event.instance_id]
+#                     print(f"Joystick {event.instance_id} disconnected")
+#
+#             self.refresh(joysticks)
+#             self.handle_mouse(events)
+#
+#             self.handle_button(events)
+#             if self.binding:
+#                 self.handle_axis(events)
+#                 self.handle_trigger(events)
+#
+#             l_arc_id, r_arc_id = self.imc.get_arcs(self.lx, self.ly, self.rx, self.ry,
+#                                                    self.code_table.L_NUM, self.code_table.R_NUM)
+#             if l_arc_id != 0:
+#                 self.last_left = l_arc_id
+#             if r_arc_id != 0:
+#                 self.last_right = r_arc_id
+#             l_keys, r_keys = self.code_table.get_recommend(self.last_left, self.last_right)
+#
+#             self.draw_gui(self.last_left, self.last_right, l_keys, r_keys)
+#
+#             pygame.display.flip()
+#             clock.tick(30)

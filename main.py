@@ -1,5 +1,9 @@
 # coding: utf-8
-from pygame_joysticks import JoyConExtend as Handler
+from pygame_joysticks import XBoxEventHandler, JoyConEventHandler, JoyMode, XBoxExtendMode, JoyConExtendMode
+from pynput.keyboard import Controller as Keyboard
+from pynput.mouse import Controller as Mouse
+from input_method_config import IMCoreForAlternativeSix as InputMethodCore
+from code_table import CodeExtension as CodeTable
 
 import pygame
 import os
@@ -25,7 +29,67 @@ class GuiStyle:
     r_handle_color = 0xfe0016  # Nintendo Red
 
 
-class JoystickGui(Handler):
+class BasicJoystickIM:
+    """
+    Base class for handler
+    """
+
+    def __init__(self):
+        pygame.init()
+        self.code_table = CodeTable()
+        self.imc = InputMethodCore()
+        self.keyboard = Keyboard()
+        self.joy_classes = [XBoxEventHandler, JoyConEventHandler]
+        self.bind_joys = []
+        self.axis = {'lx': 0, 'ly': 0, 'rx': 0, 'ry': 0}
+
+    def press_key(self, lx, ly, rx, ry):
+        la, ra = self.imc.get_arcs(lx, ly, rx, ry, self.code_table.L_NUM, self.code_table.R_NUM)
+        print(la, ra, self.code_table.code[la, ra])
+        code = self.code_table.get_code(la, ra)
+        self.keyboard.tap(code)
+
+    def main(self):
+        clock = pygame.time.Clock()
+        while True:
+            events = pygame.event.get()
+            for event in events:
+                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    pygame.quit()
+                    exit()
+                # Handle hotplugging
+                if event.type == pygame.JOYDEVICEADDED:
+                    print(event)
+                    joy = pygame.joystick.Joystick(event.device_index)
+                    for x in self.joy_classes:
+                        j = x.joy_add(joy)
+                        if j:
+                            self.bind_joys.append(j)
+                if event.type == pygame.JOYDEVICEREMOVED:
+                    for j in self.bind_joys:
+                        if j.joy_del(event):
+                            self.bind_joys.remove(j)
+            self.main_loop(events)
+            clock.tick(30)
+
+    def main_loop(self, events):
+        for j in self.bind_joys:
+            j.handle_button(events, self.keyboard, self.code_table)
+            j.handle_axis(events, self.keyboard, self.code_table, self.axis)
+            j.handle_trigger(events, self.keyboard, self.code_table, self.press_key)
+
+
+class JoystickExtendIM(BasicJoystickIM):
+    def __init__(self):
+        super().__init__()
+        self.mouse = Mouse()
+        self.joy_classes = [XBoxExtendMode, JoyConExtendMode]
+
+    def main_loop(self, events):
+        super().main_loop(events)
+
+
+class JoystickGui(BasicJoystickIM):
     def __init__(self):
         super().__init__()
         self.start_pos = None
@@ -109,9 +173,10 @@ class JoystickGui(Handler):
         text_image = self.font.render(text, True, GuiStyle.font_color)
         self.screen.blit(text_image, point_xy)
 
-    def gui_init(self):
+    def main(self):
         self.window_coords = [0, 0]
         self.refresh_win_location(self.window_coords)
+        super().main()
 
     @staticmethod
     def refresh_win_location(coordinates):
@@ -136,6 +201,11 @@ class JoystickGui(Handler):
             elif event.type == pygame.MOUSEBUTTONUP:
                 self.mouse_pressed = False
 
+    def main_loop(self, events):
+        super().main_loop(events)
+
+        self.draw_gui()
+
     def draw_gui(self, l_arc_id, r_arc_id, l_keys, r_keys):
         self.screen.fill(fuchsia)
         # draw Left Axis
@@ -144,7 +214,7 @@ class JoystickGui(Handler):
                         self.gui_config['l_radius'],
                         self.gui_config['l_inner_radius'],
                         l_keys, self.gui_config['angle_gap'])
-        lnx, lny = self.cube2circle(self.lx, self.ly)
+        lnx, lny = self.cube2circle(self.axis['lx'], self.axis['ly'])
         pygame.draw.circle(self.screen, GuiStyle.l_handle_color,
                            (self.l_center[0] + lnx * self.gui_config['l_radius'],
                             self.l_center[1] + lny * self.gui_config['l_radius']),
@@ -156,7 +226,7 @@ class JoystickGui(Handler):
                         self.gui_config['r_radius'],
                         self.gui_config['r_inner_radius'],
                         r_keys, self.gui_config['angle_gap'])
-        rnx, rny = self.cube2circle(self.rx, self.ry)
+        rnx, rny = self.cube2circle(self.axis['rx'], self.axis['ry'])
         pygame.draw.circle(self.screen, GuiStyle.r_handle_color,
                            (self.r_center[0] + rnx * self.gui_config['r_radius'],
                             self.r_center[1] + rny * self.gui_config['r_radius']),
@@ -164,5 +234,5 @@ class JoystickGui(Handler):
 
 
 if __name__ == '__main__':
-    jg = JoystickGui()
+    jg = BasicJoystickIM()
     jg.main()
