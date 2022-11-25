@@ -1,5 +1,6 @@
 # coding: utf-8
-from pygame_joysticks import XBoxEventHandler, JoyConEventHandler, JoyMode, XBoxExtendMode, JoyConExtendMode
+from pygame_joysticks import XBoxEventHandler, JoyConEventHandler, JoyMode, XBoxExtendMode, JoyConExtendMode, \
+    JoyConClickMode, XBoxClickMode
 from pynput.keyboard import Controller as Keyboard
 from pynput.mouse import Controller as Mouse
 from input_method_config import IMCoreForAlternativeSix as InputMethodCore
@@ -86,10 +87,13 @@ class JoystickExtendIM(BasicJoystickIM):
         self.joy_classes = [XBoxExtendMode, JoyConExtendMode]
 
     def main_loop(self, events):
-        super().main_loop(events)
+        for j in self.bind_joys:
+            j.handle_button(events, self.keyboard, self.code_table)
+            j.ex_handle_axis(events, self.keyboard, self.code_table, self.axis, self.mouse)
+            j.ex_handle_trigger(events, self.keyboard, self.code_table, self.press_key, self.mouse)
 
 
-class JoystickGui(BasicJoystickIM):
+class JoystickGui(JoystickExtendIM):
     def __init__(self):
         super().__init__()
         self.start_pos = None
@@ -202,9 +206,13 @@ class JoystickGui(BasicJoystickIM):
                 self.mouse_pressed = False
 
     def main_loop(self, events):
+        self.handle_mouse(events)
         super().main_loop(events)
-
-        self.draw_gui()
+        l_arc_id, r_arc_id = self.imc.get_arcs(self.axis['lx'], self.axis['ly'], self.axis['rx'], self.axis['ry'],
+                                               self.code_table.L_NUM, self.code_table.R_NUM)
+        l_keys, r_keys = self.code_table.get_recommend(l_arc_id, r_arc_id)
+        self.draw_gui(l_arc_id, r_arc_id, l_keys, r_keys)
+        pygame.display.flip()
 
     def draw_gui(self, l_arc_id, r_arc_id, l_keys, r_keys):
         self.screen.fill(fuchsia)
@@ -233,6 +241,37 @@ class JoystickGui(BasicJoystickIM):
                            10)
 
 
+class JoystickClickGui(JoystickGui):
+    def __init__(self):
+        super().__init__()
+        self.last_axis = [0, 0]
+        self.joy_classes = [JoyConClickMode, XBoxClickMode]
+
+    def press_key(self, lx, ly, rx, ry):
+        print(self.last_axis[0], self.last_axis[1], self.code_table.code[self.last_axis[0], self.last_axis[1]])
+        code = self.code_table.get_code(self.last_axis[0], self.last_axis[1])
+        self.keyboard.tap(code)
+        for i in range(2):
+            self.last_axis[i] = 0
+
+    def main_loop(self, events):
+        self.handle_mouse(events)
+        for j in self.bind_joys:
+            j.click_handle_button(events, self.keyboard, self.code_table, self.last_axis)
+            j.ex_handle_axis(events, self.keyboard, self.code_table, self.axis, self.mouse)
+            j.ex_handle_trigger(events, self.keyboard, self.code_table, self.press_key, self.mouse)
+        l_arc_id, r_arc_id = self.imc.get_arcs(self.axis['lx'], self.axis['ly'], self.axis['rx'], self.axis['ry'],
+                                               self.code_table.L_NUM, self.code_table.R_NUM)
+        if l_arc_id != 0:
+            self.last_axis[0] = l_arc_id
+        if r_arc_id != 0:
+            self.last_axis[1] = r_arc_id
+        l_keys, r_keys = self.code_table.get_recommend(self.last_axis[0], self.last_axis[1])
+
+        self.draw_gui(self.last_axis[0], self.last_axis[1], l_keys, r_keys)
+        pygame.display.flip()
+
+
 if __name__ == '__main__':
-    jg = BasicJoystickIM()
+    jg = JoystickClickGui()
     jg.main()

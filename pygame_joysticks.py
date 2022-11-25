@@ -139,9 +139,7 @@ class JoyConEventHandler(JoystickEventHandler):
 
     @classmethod
     def joy_add(cls, joy):
-        print("joy con ")
         if joy.get_name() == "Wireless Gamepad":
-            print('Singleton')
             res = cls.singleton()
             if res.l_joy and res.l_joy != joy:
                 res.r_joy = joy
@@ -213,7 +211,7 @@ class JoyConEventHandler(JoystickEventHandler):
                     axis['rx'], axis['ry'] = -e.value[1], -e.value[0]
 
 
-class JoystickEventHandlerExtendMode(metaclass=ABCMeta):
+class JoystickExtendInterface(metaclass=ABCMeta):
     def __init__(self):
         self.mode = JoyMode.NORMAL_MODE
         self.motion_pressed = None
@@ -231,10 +229,10 @@ class JoystickEventHandlerExtendMode(metaclass=ABCMeta):
         pass
 
 
-class XBoxExtendMode(JoystickEventHandlerExtendMode, XBoxEventHandler):
+class XBoxExtendMode(JoystickExtendInterface, XBoxEventHandler):
     def __init__(self):
         super(XBoxExtendMode, self).__init__()
-        super(JoystickEventHandlerExtendMode, self).__init__()
+        super(JoystickExtendInterface, self).__init__()
 
     def handle_button(self, events, keyboard, code_table):
         super().handle_button(events, keyboard, code_table)
@@ -320,10 +318,10 @@ class XBoxExtendMode(JoystickEventHandlerExtendMode, XBoxEventHandler):
                         mouse.release(Button.right)
 
 
-class JoyConExtendMode(JoystickEventHandlerExtendMode, JoyConEventHandler):
+class JoyConExtendMode(JoystickExtendInterface, JoyConEventHandler):
     def __init__(self):
         super(JoyConExtendMode, self).__init__()
-        super(JoystickEventHandlerExtendMode, self).__init__()
+        super(JoystickExtendInterface, self).__init__()
 
     def handle_button(self, events, keyboard, code_table):
         super().handle_button(events, keyboard, code_table)
@@ -390,69 +388,29 @@ class JoyConExtendMode(JoystickEventHandlerExtendMode, JoyConEventHandler):
                             mouse.release(Button.right)
 
 
-# class ClickModeJoyCon(JoyConEventHandler):
-#     def __init__(self):
-#         super().__init__()
-#         self.last_left = 0
-#         self.last_right = 0
-#
-#     def press_key(self, la, ra):
-#         print(self.last_left, self.last_right, self.code_table.code[self.last_left, self.last_right])
-#         code = self.code_table.get_code(self.last_left, self.last_right)
-#         self.keyboard.tap(code)
-#         self.last_left, self.last_right = 0, 0
-#
-#     def handle_button(self, events):
-#         super().handle_button(events)
-#         for e in events:
-#             if e.type == pygame.JOYBUTTONDOWN and e.button == 13:
-#                 if e.instance_id == self.l_joy.get_instance_id():
-#                     self.last_left = 0
-#                 elif e.instance_id == self.r_joy.get_instance_id():
-#                     self.last_right = 0
-#
-#     def main(self):
-#         self.gui_init()
-#         clock = pygame.time.Clock()
-#         joysticks = {}
-#
-#         while True:
-#             events = pygame.event.get()
-#             # print(events)
-#             for event in events:
-#                 if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-#                     pygame.quit()
-#                     exit()
-#
-#                 # Handle hotplugging
-#                 if event.type == pygame.JOYDEVICEADDED:
-#                     # This event will be generated when the program starts for every
-#                     # joystick, filling up the list without needing to create them manually.
-#                     joy = pygame.joystick.Joystick(event.device_index)
-#                     joysticks[joy.get_instance_id()] = joy
-#                     print(f"Joystick {joy.get_instance_id()} connencted")
-#
-#                 if event.type == pygame.JOYDEVICEREMOVED:
-#                     del joysticks[event.instance_id]
-#                     print(f"Joystick {event.instance_id} disconnected")
-#
-#             self.refresh(joysticks)
-#             self.handle_mouse(events)
-#
-#             self.handle_button(events)
-#             if self.binding:
-#                 self.handle_axis(events)
-#                 self.handle_trigger(events)
-#
-#             l_arc_id, r_arc_id = self.imc.get_arcs(self.lx, self.ly, self.rx, self.ry,
-#                                                    self.code_table.L_NUM, self.code_table.R_NUM)
-#             if l_arc_id != 0:
-#                 self.last_left = l_arc_id
-#             if r_arc_id != 0:
-#                 self.last_right = r_arc_id
-#             l_keys, r_keys = self.code_table.get_recommend(self.last_left, self.last_right)
-#
-#             self.draw_gui(self.last_left, self.last_right, l_keys, r_keys)
-#
-#             pygame.display.flip()
-#             clock.tick(30)
+class JoystickClickInterface(metaclass=ABCMeta):
+    def click_handle_button(self, events, keyboard, code_table, last_axis):
+        pass
+
+
+class JoyConClickMode(JoyConExtendMode, JoystickClickInterface):
+    def click_handle_button(self, events, keyboard, code_table, last_axis):
+        super(JoyConExtendMode, self).handle_button(events, keyboard, code_table)
+        for e in events:
+            if e.type == pygame.JOYBUTTONDOWN and e.button == 13:
+                if e.instance_id == self.l_joy.get_instance_id():
+                    last_axis[0] = 0
+                elif e.instance_id == self.r_joy.get_instance_id():
+                    last_axis[1] = 0
+
+
+class XBoxClickMode(JoystickClickInterface, XBoxExtendMode):
+
+    def click_handle_button(self, events, keyboard, code_table, last_axis):
+        super(XBoxExtendMode, self).handle_button(events, keyboard, code_table)
+        for e in events:
+            if e.type == pygame.JOYBUTTONDOWN and e.instance_id == self.joy.get_instance_id():
+                if e.button == 8:
+                    last_axis[0] = 0
+                elif e.button == 9:
+                    last_axis[1] = 0

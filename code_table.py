@@ -1,3 +1,4 @@
+from itertools import product
 from typing import List
 from pynput.keyboard import Key
 
@@ -58,7 +59,7 @@ key_table = {
     "media_volume_down": Key.media_volume_down,
     "media_volume_mute": Key.media_volume_mute,
     "media_volume_up": Key.media_volume_up,
-    "menu": Key.menu
+    "Menu": Key.menu
 }
 
 
@@ -161,7 +162,7 @@ class CodeExtension(SingleEnglishCode):
     configs = [
         [
             ["space", ',', '.', ';', ':', "'"],
-            ["0", '/', '\\', '`', 'menu', 'delete']
+            ["0", '/', '\\', '`', 'Menu', 'Delete']
         ],
         {
             'e': ['z', 'j', 'q'],
@@ -193,14 +194,15 @@ class CodeSix2(SingleEnglishCode):
         # 1 and 4 is large
         1: list('elmcvpbgw'),
         4: list('ofjkquxyz'),
-        2: ['F10', 'F11', 'F12', '`', 'Home', 'End', "Caps Lock", '-', '='],
-        3: ['F' + str(i+1) for i in range(9)],
+        2: ['F10', 'F11', 'F12', '`', 'Delete', 'Home', 'End', '-', '='],
+        3: ['F' + str(i + 1) for i in range(9)],
         5: list('523698741'),
-        6: list(",./;[]\\0") + ['menu'],
+        6: list(",./;[]\\0") + ['Menu'],
     }
 
     def __init__(self):
         super().__init__()
         self.code = {}
-        for i, j in zip(range(self.L_NUM + 1), range(self.R_NUM + 1)):
+        for i, j in product(range(self.L_NUM + 1), range(self.R_NUM + 1)):
+            # print(i, j)
             self.code[(i, j)] = self._code[i][j]
