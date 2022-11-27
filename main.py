@@ -273,5 +273,5 @@ class JoystickClickGui(JoystickGui):
 
 
 if __name__ == '__main__':
-    jg = JoystickClickGui()
+    jg = JoystickGui()
     jg.main()
