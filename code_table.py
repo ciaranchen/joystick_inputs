@@ -1,115 +1,208 @@
-scan_code_dict = {
-    "00 00":"None",
-    "01 00":"Esc",    #即Esc键的扫描码是"0001"
-    "02 00":"1",
-    "03 00":"2",
-    "04 00":"3",
-    "05 00":"4",
-    "06 00":"5",
-    "07 00":"6",
-    "08 00":"7",
-    "09 00":"8",
-    "0a 00":"9",
-    "0b 00":"0",
-    "0c 00":"-",
-    "0d 00":"=",
-    "0e 00":"Backspace",
-    "0f 00":"Tab",
-    "10 00":"Q",
-    "11 00":"W",
-    "12 00":"E",
-    "13 00":"R",
-    "14 00":"T",
-    "15 00":"Y",
-    "16 00":"U",
-    "17 00":"I",
-    "18 00":"O",
-    "19 00":"P",
-    "1a 00":"[",
-    "1b 00":"]",
-    "1c 00":"Enter",
-    "1d 00":"Left Ctrl",
-    "1e 00":"A",
-    "1f 00":"S",
-    "20 00":"D",
-    "21 00":"F",
-    "22 00":"G",
-    "23 00":"H",
-    "24 00":"J",
-    "25 00":"K",
-    "26 00":"L",
-    "27 00":"Semicolon",    #由评论区指出，键盘上的“;”应该用其他值代替，否则会与配置文本文件中的“;”混淆
-    "28 00":"'",
-    "29 00":"`",
-    "2a 00":"Left Shift",
-    "2b 00":"\\",
-    "2c 00":"Z",
-    "2d 00":"X",
-    "2e 00":"C",
-    "2f 00":"V",
-    "30 00":"B",
-    "31 00":"N",
-    "32 00":"M",
-    "33 00":",",
-    "34 00":".",
-    "35 00":"/",
-    "36 00":"Right Shift",
-    "37 00":"n*",
-    "38 00":"Left Alt",
-    "39 00":"Space",
-    "3a 00":"Caps Lock",
-    "3b 00":"F1",
-    "3c 00":"F2",
-    "3d 00":"F3",
-    "3e 00":"F4",
-    "3f 00":"F5",
-    "40 00":"F6",
-    "41 00":"F7",
-    "42 00":"F8",
-    "43 00":"F9",
-    "44 00":"F10",
-    "45 00":"Num Lock",
-    "46 00":"Scroll Lock",
-    "47 00":"n7",
-    "48 00":"n8",
-    "49 00":"n9",
-    "4a 00":"n-",
-    "4b 00":"n4",
-    "4c 00":"n5",
-    "4d 00":"n6",
-    "4e 00":"n+",
-    "4f 00":"n1",
-    "50 00":"n2",
-    "51 00":"n3",
-    "52 00":"n0",
-    "53 00":"n.",
-    "57 00":"F11",
-    "58 00":"F12",
+from itertools import product
+from typing import List
+from pynput.keyboard import Key
 
-    
-    "1c e0":"nEnter",
-    "1d e0":"Right Ctrl",
-    "37 e0":"PrtSc",
-    "38 e0":"Right Alt",
-    "47 e0":"Home",
-    "48 e0":"Up",
-    "49 e0":"Page Up",
-    "4b e0":"Left",
-    "4d e0":"Right",
-    "4f e0":"End",
-    "50 e0":"Down",
-    "51 e0":"Page Down",
-    "52 e0":"Insert",
-    "53 e0":"Delete",
-    "5b e0":"Left Windows",
-    "5c e0":"Right Windows",
+key_table = {
+    "Windows": Key.cmd,
+    "Left Windows": Key.cmd_l,
+    "Right Windows": Key.cmd_r,
+    "Ctrl": Key.ctrl,
+    "Left Ctrl": Key.ctrl_l,
+    "Right Ctrl": Key.ctrl_r,
+    "Shift": Key.shift,
+    "Left Shift": Key.shift_l,
+    "Right Shift": Key.shift_r,
+    "Alt": Key.alt,
+    "Left Alt": Key.alt_l,
+    "Right Alt": Key.alt_r,
+
+    "Esc": Key.esc,
+    "Backspace": Key.backspace,
+    "Tab": Key.tab,
+    "Enter": Key.enter,
+    "Space": Key.space,
+    "Caps Lock": Key.caps_lock,
+    "Num Lock": Key.num_lock,
+
+    "F1": Key.f1,
+    "F2": Key.f2,
+    "F3": Key.f3,
+    "F4": Key.f4,
+    "F5": Key.f5,
+    "F6": Key.f6,
+    "F7": Key.f7,
+    "F8": Key.f8,
+    "F9": Key.f9,
+    "F10": Key.f10,
+    "F11": Key.f11,
+    "F12": Key.f12,
+
+    "PrtSc": Key.print_screen,
+    "Scroll Lock": Key.scroll_lock,
+    "Pause": Key.pause,
+
+    "Insert": Key.insert,
+    "Delete": Key.delete,
+    "Home": Key.home,
+    "End": Key.end,
+    "Page Up": Key.page_up,
+    "Page Down": Key.page_down,
+
+    "Up": Key.up,
+    "Left": Key.left,
+    "Right": Key.right,
+    "Down": Key.down,
+
+    "media_next": Key.media_next,
+    "media_play_pause": Key.media_play_pause,
+    "media_previous": Key.media_previous,
+    "media_volume_down": Key.media_volume_down,
+    "media_volume_mute": Key.media_volume_mute,
+    "media_volume_up": Key.media_volume_up,
+    "Menu": Key.menu
 }
 
-code_table = [v for v in scan_code_dict.values() if len(v) <= 2 and v != 'Up' and not v.startswith('n')]
-# print(code_table)
 
-class CodeTable(object):
-    def return_code(x, y):
-        index = x*8 + y
-        index = index % len(code_table)
-        return code_table[index]
+class SingleEnglishCode:
+    """
+    Single English Codes has (4+1) * (8+1) = 45 keys.
+    It can include 26 English characters, 10 numbers, and 9 special keys as Follow:
+    [Space, ",", ., ?, ;, ', Enter, Backspace, Tab]
+    """
+    # TODO: consider Bi-gram probability
+    L_NUM = 4
+    R_NUM = 8
+
+    special_code = {
+        # Left Thumb Down for number
+        (3, 8): '1', (3, 1): '2', (3, 2): '3',
+        (3, 7): '4', (3, 0): '5', (3, 3): '6',
+        (3, 6): '7', (3, 5): '8', (3, 4): '9',
+    }
+
+    indexs = [
+        # Right Thumb for special keys
+        [[0, 5], [0, 1, 2, 4], True],
+        # Right Thumb for English keys
+        [[1, 2, 3, 4, 6, 7, 8], [0, 1, 2, 4], True],
+    ]
+    configs = [
+        [
+            ["space", ',', '.', ';'],
+            ["0", ':', "'", '/']
+        ],
+        {
+            'e': ['z', 'j', 'q'],
+            't': ['v', 'k', 'd'],
+            'a': ['x', 'y', 'f'],
+            'o': ['g', 'b', 'h'],
+            'i': ['u', 'p', 'w'],
+            'n': ['m', 'l', 'r'],
+            's': ['c', '-', '=']
+        }
+    ]
+    MOTION = [Key.up, Key.right, Key.down, Key.left]
+
+    def __init__(self):
+        self.bumper_mapping = (Key.ctrl, Key.alt)
+        self.LT_mapping = Key.shift
+        self.right_mapping = [Key.space, Key.enter, Key.backspace, Key.tab]
+
+        self.code = self.special_code.copy()
+        for index, data in zip(self.indexs, self.configs):
+            # print(index)
+            fi1, fi2, vertical = index
+            if isinstance(data, list):
+                for i1, f1 in enumerate(fi1):
+                    for i2, f2 in enumerate(fi2):
+                        index = (f1, f2) if not vertical else (f2, f1)
+                        self.code[index] = data[i1][i2]
+            elif isinstance(data, dict):
+                for f1, k in zip(fi1, data):
+                    codes = [k] + data[k]
+                    for f2, c in zip(fi2, codes):
+                        index = (f1, f2) if not vertical else (f2, f1)
+                        self.code[index] = c
+
+    def get_code(self, x: int, y: int) -> str or Key:
+        """
+        return key in (x, y)
+        """
+        assert x <= self.L_NUM and y <= self.R_NUM
+        key = self.code[(x, y)]
+        return key_table[key] if key in key_table else key
+
+    def get_recommend(self, x: int, y: int) -> (List[str], List[str]):
+        """
+        return the code table for (x, y)
+        """
+        code = self.code
+        return [code[(l, y)] for l in range(self.L_NUM + 1)], \
+               [code[(x, r)] for r in range(self.R_NUM + 1)]
+
+
+class CodeExtension(SingleEnglishCode):
+    L_NUM = 6
+    R_NUM = 8
+
+    special_code = {
+        # numbers
+        (6, 8): '1', (6, 1): '2', (6, 2): '3',
+        (6, 7): '4', (6, 0): '5', (6, 3): '6',
+        (6, 6): '7', (6, 5): '8', (6, 4): '9',
+    }
+
+    indexs = [
+        # Right Thumb for special keys
+        [[0, 5], [0, 1, 2, 3, 4, 5], True],
+        # Right Thumb for English keys
+        [[1, 2, 3, 4, 6, 7, 8], [0, 4, 5, 1], True],
+        [[1, 2, 3, 4, 6, 7, 8], [2, 3], True],
+    ]
+    configs = [
+        [
+            ["space", ',', '.', ';', ':', "'"],
+            ["0", '/', '\\', '`', 'Menu', 'Delete']
+        ],
+        {
+            'e': ['z', 'j', 'q'],
+            't': ['v', 'k', 'd'],
+            'a': ['x', 'y', 'f'],
+            'o': ['g', 'b', 'h'],
+            'i': ['u', 'p', 'w'],
+            'n': ['m', 'l', 'r'],
+            's': ['c', '-', '=']
+        },
+        [
+            ['Insert', 'Pause'],
+            ['Home', 'End'],
+            ['Page Up', 'Page Down'],
+            ['PrtSc', 'Scroll Lock'],
+            ['F1', 'F2'],
+            ['F3', 'F4'],
+            ['F5', 'F6']
+        ]
+    ]
+
+
+class CodeSix2(SingleEnglishCode):
+    L_NUM = 6
+    R_NUM = 8
+
+    _code = {
+        0: ['Space'] + list('tainshrd'),
+        # 1 and 4 is large
+        1: list('elmcvpbgw'),
+        4: list('ofjkquxyz'),
+        2: ['F10', 'F11', 'F12', '`', 'Delete', 'Home', 'End', '-', '='],
+        3: ['F' + str(i + 1) for i in range(9)],
+        5: list('523698741'),
+        6: list(",./;[]\\0") + ['Menu'],
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.code = {}
+        for i, j in product(range(self.L_NUM + 1), range(self.R_NUM + 1)):
+            # print(i, j)
+            self.code[(i, j)] = self._code[i][j]
