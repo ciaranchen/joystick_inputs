@@ -1,66 +1,7 @@
+import json
 from itertools import product
-from typing import List
+from typing import List, Union
 from pynput.keyboard import Key
-
-key_table = {
-    "Windows": Key.cmd,
-    "Left Windows": Key.cmd_l,
-    "Right Windows": Key.cmd_r,
-    "Ctrl": Key.ctrl,
-    "Left Ctrl": Key.ctrl_l,
-    "Right Ctrl": Key.ctrl_r,
-    "Shift": Key.shift,
-    "Left Shift": Key.shift_l,
-    "Right Shift": Key.shift_r,
-    "Alt": Key.alt,
-    "Left Alt": Key.alt_l,
-    "Right Alt": Key.alt_r,
-
-    "Esc": Key.esc,
-    "Backspace": Key.backspace,
-    "Tab": Key.tab,
-    "Enter": Key.enter,
-    "Space": Key.space,
-    "Caps Lock": Key.caps_lock,
-    "Num Lock": Key.num_lock,
-
-    "F1": Key.f1,
-    "F2": Key.f2,
-    "F3": Key.f3,
-    "F4": Key.f4,
-    "F5": Key.f5,
-    "F6": Key.f6,
-    "F7": Key.f7,
-    "F8": Key.f8,
-    "F9": Key.f9,
-    "F10": Key.f10,
-    "F11": Key.f11,
-    "F12": Key.f12,
-
-    "PrtSc": Key.print_screen,
-    "Scroll Lock": Key.scroll_lock,
-    "Pause": Key.pause,
-
-    "Insert": Key.insert,
-    "Delete": Key.delete,
-    "Home": Key.home,
-    "End": Key.end,
-    "Page Up": Key.page_up,
-    "Page Down": Key.page_down,
-
-    "Up": Key.up,
-    "Left": Key.left,
-    "Right": Key.right,
-    "Down": Key.down,
-
-    "media_next": Key.media_next,
-    "media_play_pause": Key.media_play_pause,
-    "media_previous": Key.media_previous,
-    "media_volume_down": Key.media_volume_down,
-    "media_volume_mute": Key.media_volume_mute,
-    "media_volume_up": Key.media_volume_up,
-    "Menu": Key.menu
-}
 
 
 class SingleEnglishCode:
@@ -69,7 +10,6 @@ class SingleEnglishCode:
     It can include 26 English characters, 10 numbers, and 9 special keys as Follow:
     [Space, ",", ., ?, ;, ', Enter, Backspace, Tab]
     """
-    # TODO: consider Bi-gram probability
     L_NUM = 4
     R_NUM = 8
 
@@ -88,7 +28,7 @@ class SingleEnglishCode:
     ]
     configs = [
         [
-            ["space", ',', '.', ';'],
+            [Key.space, ',', '.', ';'],
             ["0", ':', "'", '/']
         ],
         {
@@ -104,7 +44,7 @@ class SingleEnglishCode:
     MOTION = [Key.up, Key.right, Key.down, Key.left]
 
     def __init__(self):
-        self.bumper_mapping = (Key.ctrl, Key.alt)
+        self.bumper_mapping = [Key.ctrl, Key.alt]
         self.LT_mapping = Key.shift
         self.right_mapping = [Key.space, Key.enter, Key.backspace, Key.tab]
 
@@ -130,7 +70,7 @@ class SingleEnglishCode:
         """
         assert x <= self.L_NUM and y <= self.R_NUM
         key = self.code[(x, y)]
-        return key_table[key] if key in key_table else key
+        return key
 
     def get_recommend(self, x: int, y: int) -> (List[str], List[str]):
         """
@@ -138,7 +78,40 @@ class SingleEnglishCode:
         """
         code = self.code
         return [code[(l, y)] for l in range(self.L_NUM + 1)], \
-               [code[(x, r)] for r in range(self.R_NUM + 1)]
+            [code[(x, r)] for r in range(self.R_NUM + 1)]
+
+    def to_json(self, filename):
+        def walk_mapping(arr: List[Union[Key, str]]) -> List[str]:
+            return [c if isinstance(c, str) else c.name for c in arr]
+
+        table = [[self.code[(i, j)] for j in range(self.R_NUM)] for i in range(self.L_NUM)]
+        table = [walk_mapping(line) for line in table]
+        obj = {
+            'config_name': self.__class__.__name__,
+            'layer_number': 1,
+            'layers': {
+                'mouse-layer': {
+                    'L_NUM': 4,
+                    'R_NUM': 1,
+                    'axis': [['<Mouse:%d>' % i for i in range(4)]],
+                    'buttons': walk_mapping(
+                        self.right_mapping + self.bumper_mapping + [Key.up, Key.down, Key.left, Key.right]
+                    ) + [r'<None>', r'<PressToLayer:layer1>'],
+                    'trigger': [r'<MouseClick:left>', r'<MouseClick:right>']
+                },
+                'layer1': {
+                    'L_NUM': self.L_NUM,
+                    'R_NUM': self.R_NUM,
+                    'axis': table,
+                    'buttons': walk_mapping(
+                        self.right_mapping + self.bumper_mapping + [Key.up, Key.down, Key.left, Key.right]
+                    ) + [r'<None>', r'<PressToLayer:mouse-layer>'],
+                    'trigger': walk_mapping([self.LT_mapping, r'<EnterCode>']),
+                }
+            }
+        }
+        with open(filename, 'w') as fp:
+            json.dump(obj, fp)
 
 
 class CodeExtension(SingleEnglishCode):
@@ -161,8 +134,8 @@ class CodeExtension(SingleEnglishCode):
     ]
     configs = [
         [
-            ["space", ',', '.', ';', ':', "'"],
-            ["0", '/', '\\', '`', 'Menu', 'Delete']
+            [Key.space, ',', '.', ';', ':', "'"],
+            ["0", '/', '\\', '`', Key.menu, Key.delete]
         ],
         {
             'e': ['z', 'j', 'q'],
@@ -174,13 +147,13 @@ class CodeExtension(SingleEnglishCode):
             's': ['c', '-', '=']
         },
         [
-            ['Insert', 'Pause'],
-            ['Home', 'End'],
-            ['Page Up', 'Page Down'],
-            ['PrtSc', 'Scroll Lock'],
-            ['F1', 'F2'],
-            ['F3', 'F4'],
-            ['F5', 'F6']
+            [Key.insert, Key.pause],
+            [Key.home, Key.end],
+            [Key.page_up, Key.page_down],
+            [Key.print_screen, Key.scroll_lock],
+            [Key.f1, Key.f2],
+            [Key.f3, Key.f4],
+            [Key.f5, Key.f6]
         ]
     ]
 
@@ -194,10 +167,10 @@ class CodeSix2(SingleEnglishCode):
         # 1 and 4 is large
         1: list('elmcvpbgw'),
         4: list('ofjkquxyz'),
-        2: ['F10', 'F11', 'F12', '`', 'Delete', 'Home', 'End', '-', '='],
-        3: ['F' + str(i + 1) for i in range(9)],
+        2: [Key.f10, Key.f11, Key.f12, '`', Key.delete, Key.home, Key.end, '-', '='],
+        3: [Key.f1, Key.f2, Key.f3, Key.f4, Key.f5, Key.f6, Key.f7, Key.f8, Key.f9],
         5: list('523698741'),
-        6: list(",./;[]\\0") + ['Menu'],
+        6: list(",./;[]\\0") + [Key.menu],
     }
 
     def __init__(self):
@@ -206,3 +179,12 @@ class CodeSix2(SingleEnglishCode):
         for i, j in product(range(self.L_NUM + 1), range(self.R_NUM + 1)):
             # print(i, j)
             self.code[(i, j)] = self._code[i][j]
+
+
+if __name__ == '__main__':
+    sec = SingleEnglishCode()
+    sec.to_json('simple_english.json')
+    ce = CodeExtension()
+    ce.to_json('english_code_ex.json')
+    cs6 = CodeSix2()
+    cs6.to_json('code6.json')

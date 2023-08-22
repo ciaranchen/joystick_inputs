@@ -243,7 +243,7 @@ class JoystickGui(JoystickExtendIM):
 
 class JoystickClickGui(JoystickGui):
     def __init__(self):
-        super(JoystickGui, self).__init__()
+        super().__init__()
         self.last_axis = [0, 0]
         self.joy_classes = [JoyConClickMode, XBoxClickMode]
 
@@ -273,5 +273,5 @@ class JoystickClickGui(JoystickGui):
 
 
 if __name__ == '__main__':
-    jg = JoystickClickGui()
+    jg = JoystickGui()
     jg.main()
