@@ -1,13 +1,11 @@
 import json
 import re
+from dataclasses import dataclass
+from typing import Union
 
 from pynput.keyboard import Key
 from schema import Schema, Optional, And, Or, Use
 import string
-
-key_table = {k.name: k for k in Key}
-printable_characters = [char for char in string.printable if len(char) == 1]
-VALID_KEYS = printable_characters + list(key_table.keys())
 
 FUNCTIONS = {
     'PressToLayer': r'<PressToLayer:(.*)>',
@@ -35,35 +33,50 @@ FUNCTIONS = {
 # L. Stick In     - Button 10
 # R. Stick In     - Button 11
 
-class ConfigFunction:
+class ConfigParser:
+    def __init__(self):
+        key_table = {k.name: k for k in Key}
+        printable_characters = [char for char in string.printable if len(char) == 1]
+        valid_keys = printable_characters + list(key_table.keys())
+
+        valid_input = Or(And(str, lambda x: x.lower() in valid_keys), And(str, ConfigParser.is_function))
+        self.input_config_schema = Schema({
+            'config_name': str,
+            'layer_number': And(int, lambda x: 0 < x < 10),
+            'layers': {
+                str: {
+                    'L_NUM': int,
+                    'R_NUM': int,
+                    'axis': [[valid_input]],
+                    'buttons': And([valid_input], lambda x: len(x) == 12),
+                    'trigger': And([valid_input], lambda x: len(x) == 2)
+                }
+            }
+        })
+
     @staticmethod
     def is_function(key_string):
         for reg in FUNCTIONS.values():
-            if re.match(reg, key_string):
-                return True
+            match_res = re.fullmatch(reg, key_string)
+            if match_res:
+                return match_res
         return False
 
     @staticmethod
-    def get_function(key_string):
-        pass
+    def get_function(key: Union[str, Key]):
+        if isinstance(key, Key):
+            return key
+        res = ConfigParser.is_function(key_string=key)
+        if not res:
+            return key
+        func_name, args = res.group(0), res.groups()
+        return lambda: func_name, args
 
+    def validate(self, _data):
+        return self.input_config_schema.validate(_data)
 
-VALID_INPUT = Or(And(str, lambda x: x.lower() in VALID_KEYS), And(str, ConfigFunction.is_function))
-input_config_schema = Schema({
-    'config_name': str,
-    'layer_number': And(int, lambda x: 0 < x < 10),
-    'layers': {
-        str: {
-            'L_NUM': int,
-            'R_NUM': int,
-            'axis': [[VALID_INPUT]],
-            'buttons': And([VALID_INPUT], lambda x: len(x) == 12),
-            'trigger': And([VALID_INPUT], lambda x: len(x) == 2)
-        }
-    }
-})
 
 if __name__ == '__main__':
-    with open(r'C:\Users\ciaran\Desktop\Projects\joystick_inputs\configs\simple_english.json') as fp:
+    with open(r'/configs/simple_english.json') as fp:
         data = json.load(fp)
-    res = input_config_schema.validate(data)
+    res = ConfigParser().validate(data)

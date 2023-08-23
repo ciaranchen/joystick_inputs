@@ -1,36 +1,54 @@
 import json
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict, Union, Callable
 from pynput.keyboard import Key
+from InputConfig.config_schema import ConfigParser
 
-from .config_schema import input_config_schema, ConfigFunction
+ACTION = Union[str, Key, Callable]
+
+
+@dataclass
+class ArcJoyStickLayer:
+    L_NUM: int
+    R_NUM: int
+    buttons: List[ACTION] = None
+    trigger: List[ACTION] = None
+    axis: List[ACTION] = None
+
+    @classmethod
+    def init(cls, data):
+        NUMS = ['L_NUM', 'R_NUM']
+        res = cls(**{k: data[k] for k in data if k in NUMS})
+        for k, v in data.items():
+            if k in NUMS:
+                continue
+            if k == 'axis':
+                res.axis = [[ConfigParser.get_function(i) for i in line] for line in v]
+            if k == 'buttons':
+                res.buttons = [ConfigParser.get_function(i) for i in v]
+            if k == 'trigger':
+                res.trigger = [ConfigParser.get_function(i) for i in v]
 
 
 @dataclass
 class ArcJoyStickConfig:
     config_name: str
-    L_NUM: int
-    R_NUM: int
     layer_number: int
-
-    table: List[List[Key]] = None
+    default_layer: str
+    layers: Dict[str, ArcJoyStickLayer] = None
 
     @classmethod
     def load_from(cls, filename):
         with open(filename) as fp:
             data = json.load(fp)
-        config = input_config_schema.validate(data)
-        res = cls(**{k: config[k] for k in config if k != 'table'})
-        layers = config['table']
-
-        res.table = [
-            [
-                [ConfigFunction.get_function(c) if ConfigFunction.is_function(c) else c for c in line]
-                for line in layer
-            ]
-            for layer in layers
-        ]
+        config = ConfigParser().validate(data)
+        layers = {k: ArcJoyStickLayer.init(config['layers'][k]) for k in config['layers']}
+        if 'default_layer' not in config:
+            config['default_layer'] = list(layers.keys())[0]
+        res = cls(**{k: config[k] for k in config if k != 'layers'})
+        res.layers = layers
         return res
 
-    def get_code(self, joystick_state):
-        pass
+
+if __name__ == '__main__':
+    c = ArcJoyStickConfig.load_from(r"/configs/code6.json")
