@@ -1,3 +1,4 @@
+import math
 from functools import reduce
 from typing import Callable
 
@@ -11,6 +12,11 @@ from InputConfig.input_config import ArcJoyStickConfig
 
 
 class JoyStickFunctionController:
+    mouse_orient = (0, 0)
+    mouse_acceleration = (0.3, 0.1)
+    mouse_tick = [0, 0]
+    mouse_speed = [0, 0]
+
     def __init__(self) -> None:
         super().__init__()
         self.mouse_controller = MouseController()
@@ -48,9 +54,11 @@ class JoyStickFunctionController:
 
     def enter_axis(self):
         def __inner(core, joy, event):
-            print('unfinished enter...')
-            core.get_axis(joy)
-            pass
+            now_layer = core.config.layers[core.layer]
+            l_index = core.which_arc(joy.lx, joy.ly, now_layer.L_NUM)
+            r_index = core.which_arc(joy.rx, joy.ry, now_layer.R_NUM)
+            func = now_layer.axis[l_index][r_index]
+            return func(core, joy, event)
 
         return __inner
 
@@ -59,7 +67,7 @@ class JoyStickFunctionController:
         # do nothing
         return lambda _, __, ___: None
 
-    def mouse(self, input):
+    def mouse_move(self, input):
         try:
             index = int(input)
         except:
@@ -75,6 +83,8 @@ class JoyStickFunctionController:
 
 
 class InputManagerCore:
+    arc_threshold = 0.3
+
     def __init__(self, config_location):
         self.config = ArcJoyStickConfig.load_from(config_location)
         self.layer = self.config.default_layer
@@ -83,15 +93,11 @@ class InputManagerCore:
 
         self.function_axises = []
         for name, layer in self.config.layers.items():
-            axises = reduce(lambda x, y: x + y, layer._axis, [])
-            if any([isinstance(a, tuple) for a in axises]):
+            axs = reduce(lambda x, y: x + y, layer._axis, [])
+            if any([isinstance(a, tuple) for a in axs]):
                 self.function_axises.append(name)
 
         self.config.load_controller(JoyStickFunctionController())
-
-    @staticmethod
-    def arc(self, x, y, arc):
-        pass
 
     def action(self, joy, event_type, button=None, trigger=None, axis=False):
         # check_layer()
@@ -111,6 +117,30 @@ class InputManagerCore:
         else:
             print(button, trigger, axis)
             raise RuntimeError('Not valid call.')
+
+    @staticmethod
+    def start_arc(num):
+        return - math.pi / num - math.pi / 2
+
+    @staticmethod
+    def arcs(num):
+        return [InputManagerCore.start_arc(num) + i * (2 * math.pi / num) for i in range(num + 1)]
+
+    @staticmethod
+    def arc_distance(x, y):
+        return math.sqrt(x * x + y * y)
+
+    @staticmethod
+    def which_arc(x, y, arc_num):
+        if InputManagerCore.arc_distance(x, y) < InputManagerCore.arc_threshold:
+            return 0
+        angle = math.atan2(y, x)
+        if angle < InputManagerCore.arcs(arc_num)[0]:
+            angle += 2 * math.pi
+        for i, a1, a2 in zip(range(arc_num), InputManagerCore.arcs(arc_num), InputManagerCore.arcs(arc_num)[1:]):
+            if a1 <= angle < a2 or a1 <= (angle - math.pi * 2) < a2:
+                return i + 1
+        return -1
 
 
 if __name__ == '__main__':

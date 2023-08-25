@@ -136,7 +136,7 @@ class XBoxEventHandler(JoystickEventHandler):
                 else:
                     return
                 setattr(self.state, t, state_pressed)
-                cb(self.state, pygame.JOYBUTTONDOWN if state_pressed else pygame.JOYBUTTONUP, trigger=t == 'lr')
+                cb(self.state, pygame.JOYBUTTONDOWN if state_pressed else pygame.JOYBUTTONUP, trigger=(t == 'lr'))
 
     def handle_axis(self, e, cb):
         if e.type != pygame.JOYAXISMOTION:

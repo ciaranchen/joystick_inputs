@@ -11,8 +11,8 @@ class JoyStickState(QObject, metaclass=PropertyMeta):
     ry = Property(float)
 
     buttons = Property(list)
-    l_trigger = Property(bool)
-    r_trigger = Property(bool)
+    lt = Property(bool)
+    rt = Property(bool)
 
     def __init__(self):
         super().__init__()
@@ -20,6 +20,6 @@ class JoyStickState(QObject, metaclass=PropertyMeta):
         self.ly = 0.0
         self.rx = 0.0
         self.ry = 0.0
-        self.l_trigger = False
-        self.r_trigger = False
+        self.lt = False
+        self.rt = False
         self.buttons = [False] * SUPPORT_BUTTONS

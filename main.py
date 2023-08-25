@@ -8,7 +8,6 @@ from PySide2.QtGui import QGuiApplication
 from PySide2.QtQml import QQmlApplicationEngine
 from PySide2.QtCore import QUrl, QTimer
 
-from InputConfig.input_config import ArcJoyStickConfig
 from JoyStick.joystick_state import JoyStickState
 from JoyStick.pygame_joysticks import JoystickEventHandler, XBoxEventHandler, JoyConEventHandler
 from src.core import InputManagerCore

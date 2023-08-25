@@ -11,7 +11,7 @@ FUNCTIONS = {
     'hold_to_layer': r'<HoldToLayer:(.*)>',
     'enter_axis': r'<EnterCode>',
     'none': r'<None>',
-    'mouse': r'<Mouse:(\d+)>',
+    'mouse_move': r'<Mouse:(\d+)>',
     'mouse_click': r'<MouseClick:(.*)>'
 }
 
