@@ -4,6 +4,50 @@ File to handle the Joystick Thumb Input
 """
 import math
 from code_table import CodeExtension
+from dataclasses import dataclass
+from typing import List
+
+
+@dataclass
+class ArcComputation:
+    arc_num: int
+
+    @property
+    def start_arc(self):
+        return - math.pi / self.arc_num - math.pi / 2
+
+    @property
+    def arcs(self):
+        return [self.start_arc + i * (2 * math.pi / self.arc_num) for i in range(self.arc_num + 1)]
+
+    def which_arc(self, x, y):
+        angle = math.atan2(y, x)
+        if angle < self.start_arc:
+            angle += 2 * math.pi
+        for i, a1, a2 in zip(range(self.arc_num), self.arcs, self.arcs[1:]):
+            if a1 <= angle < a2 or a1 <= (angle - math.pi * 2) < a2:
+                return i + 1
+        return -1
+
+
+@dataclass
+class InputManagerCore:
+    # status
+
+    def __init__(self, config):
+
+        self.config = config
+        self.layer = config.layers
+    @staticmethod
+    def _press_to_layer(layer_name):
+        pass
+
+    @staticmethod
+    def arc(self, x, y, arc):
+        pass
+
+    def action(self, now_state, event):
+        pass
 
 
 class BasicInputMethodCore:
