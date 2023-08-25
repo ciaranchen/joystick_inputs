@@ -1,23 +1,19 @@
 import json
 import re
-from dataclasses import dataclass
-from typing import Union
+import string
+from typing import Union, Tuple
 
 from pynput.keyboard import Key
-from schema import Schema, Optional, And, Or, Use
-import string
+from schema import Schema, And, Or
 
 FUNCTIONS = {
-    'PressToLayer': r'<PressToLayer:(.*)>',
-    'HoldToLayer': r'<HoldToLayer:(.*)>',
-    'PressToMouseLayer': r'<PressToMouse>',
-    'HoldToMouseLayer': r'<HoldToMouse>',
-    'EnterCode': r'<EnterCode>',
-    'None': r'<None>',
-    'Mouse': r'<Mouse:(\d+)>',
-    'MouseClick': r'<MouseClick:(.*)>'
+    'press_to_layer': r'<PressToLayer:(.*)>',
+    'hold_to_layer': r'<HoldToLayer:(.*)>',
+    'enter_axis': r'<EnterCode>',
+    'none': r'<None>',
+    'mouse': r'<Mouse:(\d+)>',
+    'mouse_click': r'<MouseClick:(.*)>'
 }
-
 
 # BUTTONS
 # A Button        - Button 0
@@ -32,10 +28,13 @@ FUNCTIONS = {
 # D-pad RIGHT     - Button 9
 # L. Stick In     - Button 10
 # R. Stick In     - Button 11
+SUPPORT_BUTTONS = 12
+
+key_table = {k.name: k for k in Key}
+
 
 class ConfigParser:
     def __init__(self):
-        key_table = {k.name: k for k in Key}
         printable_characters = [char for char in string.printable if len(char) == 1]
         valid_keys = printable_characters + list(key_table.keys())
 
@@ -55,22 +54,22 @@ class ConfigParser:
         })
 
     @staticmethod
-    def is_function(key_string):
-        for reg in FUNCTIONS.values():
+    def is_function(key_string: str):
+        for name, reg in FUNCTIONS.items():
             match_res = re.fullmatch(reg, key_string)
             if match_res:
-                return match_res
+                return name, match_res
         return False
 
     @staticmethod
-    def get_function(key: Union[str, Key]):
-        if isinstance(key, Key):
-            return key
+    def get_function(key: str) -> Union[str, Key, Tuple]:
+        if key in key_table:
+            return key_table[key]
         res = ConfigParser.is_function(key_string=key)
         if not res:
             return key
-        func_name, args = res.group(0), res.groups()
-        return lambda: func_name, args
+        func_name, args = res[0], res[1].groups()
+        return func_name, args
 
     def validate(self, _data):
         return self.input_config_schema.validate(_data)

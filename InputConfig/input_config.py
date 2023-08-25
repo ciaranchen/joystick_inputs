@@ -1,19 +1,23 @@
 import json
 from dataclasses import dataclass
-from typing import List, Dict, Union, Callable
+from typing import List, Dict, Union, Callable, Tuple
 from pynput.keyboard import Key
 from InputConfig.config_schema import ConfigParser
 
-ACTION = Union[str, Key, Callable]
+ACTION = Union[str, Key, Tuple]
 
 
 @dataclass
 class ArcJoyStickLayer:
     L_NUM: int
     R_NUM: int
-    buttons: List[ACTION] = None
-    trigger: List[ACTION] = None
-    axis: List[ACTION] = None
+    _buttons: List[ACTION] = None
+    _trigger: List[ACTION] = None
+    _axis: List[List[ACTION]] = None
+
+    buttons: List[Callable] = None
+    trigger: List[Callable] = None
+    axis: List[List[Callable]] = None
 
     @classmethod
     def init(cls, data):
@@ -23,11 +27,23 @@ class ArcJoyStickLayer:
             if k in NUMS:
                 continue
             if k == 'axis':
-                res.axis = [[ConfigParser.get_function(i) for i in line] for line in v]
+                res._axis = [[ConfigParser.get_function(i) for i in line] for line in v]
             if k == 'buttons':
-                res.buttons = [ConfigParser.get_function(i) for i in v]
+                res._buttons = [ConfigParser.get_function(i) for i in v]
             if k == 'trigger':
-                res.trigger = [ConfigParser.get_function(i) for i in v]
+                res._trigger = [ConfigParser.get_function(i) for i in v]
+        return res
+
+    def load_controller(self, controller):
+        def func_trans(f):
+            if isinstance(f, tuple):
+                name, args = f
+                return getattr(controller, name)(*args)
+            return controller.press(f)
+
+        self.axis = [[func_trans(i) for i in line] for line in self._axis]
+        self.trigger = [func_trans(i) for i in self._trigger]
+        self.buttons = [func_trans(i) for i in self._buttons]
 
 
 @dataclass
@@ -48,6 +64,10 @@ class ArcJoyStickConfig:
         res = cls(**{k: config[k] for k in config if k != 'layers'})
         res.layers = layers
         return res
+
+    def load_controller(self, controller):
+        for layer in self.layers.values():
+            layer.load_controller(controller)
 
 
 if __name__ == '__main__':
