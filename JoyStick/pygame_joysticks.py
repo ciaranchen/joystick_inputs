@@ -5,13 +5,12 @@ Joystick management class
 import enum
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict, Set
+from typing import List, Dict
 
 import pygame
 from pynput.keyboard import Key
-from pynput.mouse import Button
 
-from input_method_config import BasicInputMethodCore
+from InputConfig import JoyStickButtons
 
 
 def limit_to(number, lower, upper):
@@ -51,9 +50,6 @@ class SingletonJoystickHandler(metaclass=ABCMeta):
 class JoystickEventHandler(SingletonJoystickHandler):
     state = None
 
-    axis_mapping: Dict[str, int]
-    button_mapping: Dict[int, int]
-
     @classmethod
     def joy_add(cls, joy, state):
         """
@@ -82,9 +78,18 @@ class JoystickEventHandler(SingletonJoystickHandler):
     def handle_axis(self, e, cb):
         raise NotImplementedError
 
+    # Tool Functions
+    def button_changed(self, button, e_type, callback):
+        self.state.buttons[button] = (e_type == pygame.JOYBUTTONDOWN)
+        callback(self.state, e_type, button=button)
+
 
 @dataclass
 class XBoxEventHandler(JoystickEventHandler):
+    axis_mapping: Dict[str, int] = None
+    button_mapping: Dict[int, JoyStickButtons] = None
+    hat_mapping_x: Dict[int, JoyStickButtons] = None
+    hat_mapping_y: Dict[int, JoyStickButtons] = None
     joy: pygame.joystick.Joystick = None
     state = None
     type_name: str = "Xbox 360 Controller"
@@ -92,6 +97,8 @@ class XBoxEventHandler(JoystickEventHandler):
     TRIGGER_THRESHOLD: float = 0.3
     AXIS_THRESHOLD: float = 0.3
     LR_AXIS: List[int] = (0, 1, 2, 3)
+    LAST_HAT_X = 0
+    LAST_HAT_Y = 0
 
     @classmethod
     def joy_add(cls, joy, state):
@@ -100,14 +107,18 @@ class XBoxEventHandler(JoystickEventHandler):
         if cls._instance:
             return cls._instance
 
-        res = cls(axis_mapping={
+        res = cls()
+        res.axis_mapping = {
             'lx': 0, 'ly': 1, 'rx': 2, 'ry': 3,
             'lt': 4, 'rt': 5
-        }, button_mapping={**{
-            k: k for k in range(6)
+        }
+        res.button_mapping = {**{
+            v: k for k, v in JoyStickButtons.__members__.items() if v < 6
         }, **{
-            8: 10, 9: 11
-        }})
+            8: JoyStickButtons.LStickIn, 9: JoyStickButtons.RStickIn
+        }}
+        res.hat_mapping_x = {-1: JoyStickButtons.LLeftButton, 1: JoyStickButtons.LRightButton}
+        res.hat_mapping_y = {-1: JoyStickButtons.LUpButton, 1: JoyStickButtons.LDownButton}
         res.joy = joy
         res.state = state
         cls._instance = res
@@ -118,11 +129,18 @@ class XBoxEventHandler(JoystickEventHandler):
 
     def handle_button(self, e, cb):
         if e.type == pygame.JOYBUTTONDOWN or e.type == pygame.JOYBUTTONUP:
-            b = self.button_mapping[e.button]
-            print(e)
-            is_pressed = e.type == pygame.JOYBUTTONDOWN
-            self.state.buttons[b] = is_pressed
-            cb(self.state, e.type, button=b)
+            b = self.button_mapping[e.button].value
+            self.button_changed(b, e.type, cb)
+        if e.type == pygame.JOYHATMOTION:
+            vx, vy = e.value
+            if vx != self.LAST_HAT_X:
+                self.button_changed(self.hat_mapping_x[self.LAST_HAT_X], pygame.JOYBUTTONUP, cb)
+                if vx != 0:
+                    self.button_changed(self.hat_mapping_x[vx], pygame.JOYBUTTONDOWN, cb)
+            if vy != self.LAST_HAT_Y:
+                self.button_changed(self.hat_mapping_y[self.LAST_HAT_Y], pygame.JOYBUTTONUP, cb)
+                if vy != 0:
+                    self.button_changed(self.hat_mapping_y[vy], pygame.JOYBUTTONDOWN, cb)
 
     def handle_trigger(self, e, cb):
         if e.type != pygame.JOYAXISMOTION:
@@ -133,7 +151,7 @@ class XBoxEventHandler(JoystickEventHandler):
                     state_pressed = True
                 elif getattr(self.state, t) and e.value < self.TRIGGER_THRESHOLD:
                     state_pressed = False
-                else:
+                else:  # Just do nothing
                     return
                 setattr(self.state, t, state_pressed)
                 cb(self.state, pygame.JOYBUTTONDOWN if state_pressed else pygame.JOYBUTTONUP, trigger=(t == 'lr'))

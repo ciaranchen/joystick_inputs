@@ -1,6 +1,7 @@
 import re
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Self
+from typing import Optional, Tuple
 
 import pygame
 from pygame import JOYBUTTONUP, JOYBUTTONDOWN
@@ -22,7 +23,7 @@ class JoyStickInputFunctions(Enum):
     mouse_click = r'<MouseClick =(.*)>'
 
     @classmethod
-    def get_function(cls, key: str) -> Optional[(str, re.Match)]:
+    def get_function(cls, key: str) -> Optional[Tuple[str, re.Match]]:
         for name, reg in cls.__members__.items():
             match_res = re.fullmatch(reg, key)
             if match_res:
@@ -30,22 +31,17 @@ class JoyStickInputFunctions(Enum):
         return None
 
     @classmethod
-    def is_function(cls, key: str, function: Self) -> bool:
+    def is_function(cls, key: str, function: "JoyStickInputFunctions") -> bool:
         reg: str = function.value
         match_res = re.fullmatch(reg, key)
         return match_res is not None
 
 
-class JoyStickFunctionController:
-    mouse_orient = (0, 0)
-    mouse_acceleration = (0.3, 0.1)
-    mouse_tick = [0, 0]
-    mouse_speed = [0, 0]
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.mouse_controller = MouseController()
-        self.key_controller = KeyController()
+class JoyStickBasicFunction:
+    @staticmethod
+    def none():
+        # do nothing
+        return lambda _, __, ___: None
 
     @staticmethod
     def __press_release(controller, key, event, types=None):
@@ -56,6 +52,21 @@ class JoyStickFunctionController:
         elif event == types[1]:
             controller.release(key)
         return None
+
+
+@dataclass
+class JoyStickKeyboardFunction(JoyStickBasicFunction):
+    key_controller = KeyController()
+
+    def press(self, key):
+        return lambda _, __, e: self.__press_release(self.key_controller, key, e)
+
+    def tap(self, key, _type=pygame.JOYBUTTONDOWN):
+        def __tap(core, joy, event):
+            if event == _type:
+                self.key_controller.tap(key)
+
+        return __tap
 
     @staticmethod
     def press_to_layer(layer):
@@ -88,14 +99,19 @@ class JoyStickFunctionController:
 
         return __inner
 
-    @staticmethod
-    def none():
-        # do nothing
-        return lambda _, __, ___: None
 
-    def mouse_move(self, input):
+@dataclass
+class JoyStickMouseFunction(JoyStickBasicFunction):
+    mouse_controller = MouseController()
+
+    mouse_orient = (0, 0)
+    mouse_acceleration = (0.3, 0.1)
+    mouse_tick = [0, 0]
+    mouse_speed = [0, 0]
+
+    def mouse_move(self, move):
         try:
-            index = int(input)
+            index = int(move)
         except:
             raise RuntimeError('Error config')
         # direction = [][index]
@@ -106,12 +122,6 @@ class JoyStickFunctionController:
         b = Button[button]
         return lambda _, __, e: self.__press_release(self.mouse_controller, b, e)
 
-    def press(self, key):
-        return lambda _, __, e: self.__press_release(self.key_controller, key, e)
 
-    def tap(self, key, _type=pygame.JOYBUTTONDOWN):
-        def __tap(core, joy, event):
-            if event == _type:
-                self.key_controller.tap(key)
-
-        return __tap
+class JoyStickFunctionController(JoyStickKeyboardFunction, JoyStickMouseFunction):
+    pass
