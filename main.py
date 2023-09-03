@@ -10,7 +10,7 @@ from PySide2.QtCore import QUrl, QTimer
 
 from JoyStick.joystick_state import JoyStickState
 from JoyStick.pygame_joysticks import JoystickEventHandler, XBoxEventHandler, JoyConEventHandler
-from src.core import InputManagerCore
+from src.core import ArcInputCore
 
 
 class Main:
@@ -18,7 +18,7 @@ class Main:
         pygame.init()
         self.joy_classes = [XBoxEventHandler]
         self.joy: Optional[JoystickEventHandler] = None
-        self.core = InputManagerCore(r"C:\Users\ciaran\Desktop\Projects\joystick_inputs\configs\code6.json")
+        self.core = ArcInputCore(r"C:\Users\ciaran\Desktop\Projects\joystick_inputs\configs\code6.json")
 
     def init(self, state: JoyStickState):
         print('Waiting for Joy Stick connection...')

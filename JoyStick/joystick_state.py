@@ -1,7 +1,7 @@
 from PySide2.QtCore import QObject
 
-from InputConfig.config_schema import SUPPORT_BUTTONS
-from JoyStick.qt_decorator import PropertyMeta, Property
+from InputConfig import JoyStickButtons
+from utils import PropertyMeta, Property
 
 
 class JoyStickState(QObject, metaclass=PropertyMeta):
@@ -22,4 +22,4 @@ class JoyStickState(QObject, metaclass=PropertyMeta):
         self.ry = 0.0
         self.lt = False
         self.rt = False
-        self.buttons = [False] * SUPPORT_BUTTONS
+        self.buttons = [False] * JoyStickButtons.get_size()

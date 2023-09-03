@@ -24,6 +24,10 @@ class JoyStickButtons(Enum):
     LStickIn = 10
     RStickIn = 11
 
+    @classmethod
+    def get_size(cls):
+        return len(cls.__members__)
+
 
 class ConfigParser:
     def __init__(self):
