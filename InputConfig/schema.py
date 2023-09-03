@@ -7,7 +7,7 @@ from typing import Callable, Optional
 from pynput.keyboard import Key
 from schema import Schema, And, Or
 
-from InputConfig.input_functions import JoyStickInputFunctions
+from InputConfig.functions import JoyStickInputFunctions
 
 
 class JoyStickButtons(Enum):

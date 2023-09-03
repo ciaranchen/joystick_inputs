@@ -1,8 +1,8 @@
 import json
 from dataclasses import dataclass
 from typing import List, Dict, Callable
-from InputConfig.config_schema import ConfigParser, JoyStickButtons
-from InputConfig.input_functions import JoyStickInputFunctions
+from InputConfig.schema import ConfigParser, JoyStickButtons
+from InputConfig.functions import JoyStickInputFunctions
 
 
 @dataclass

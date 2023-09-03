@@ -1,6 +1,5 @@
 import math
-from InputConfig.input_config import ArcJoyStickConfig
-from InputConfig.input_functions import JoyStickFunctionController
+from InputConfig import ArcJoyStickConfig, JoyStickFunctionController
 
 
 class InputManagerCore:
@@ -8,22 +7,20 @@ class InputManagerCore:
 
     def __init__(self, config_location):
         self.config = ArcJoyStickConfig.load_from(config_location)
+        print('default_layer:', self.config.default_layer)
         self.layer = self.config.default_layer
         self.available_layer = list(self.config.layers.keys())
-        print('default_layer:', self.layer)
-
-        self.axis_function_layers = [name for name, layer in self.config.layers.items() if not layer.is_axis_layer]
         self.config.load_controller(JoyStickFunctionController())
 
     def action(self, joy, event_type, button=None, trigger=None, axis=False):
-        # check_layer()
         now_layer = self.config.layers[self.layer]
         if axis:
-            if now_layer in self.axis_function_layers:
-                # handle axis_move
-                func = now_layer.axis[axis]
-                func(self, joy, event_type)
-            return
+            if not now_layer.is_axis_layer:
+                # Axis 的位置暂时不会产生输出
+                return
+            # handle axis_move
+            func = now_layer.axis[axis]
+            func(self, joy, event_type)
         if trigger is not None:
             func = now_layer.trigger[0 if trigger else 1]
             func(self, joy, event_type)

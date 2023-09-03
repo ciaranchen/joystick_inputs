@@ -101,7 +101,9 @@ class JoyStickFunctionController:
         # direction = [][index]
 
     def mouse_click(self, button):
-        b = {'left': Button.left, 'right': Button.right, 'middle': Button.middle}[button]
+        if not hasattr(Button, button):
+            return self.none()
+        b = Button[button]
         return lambda _, __, e: self.__press_release(self.mouse_controller, b, e)
 
     def press(self, key):
