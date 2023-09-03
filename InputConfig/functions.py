@@ -14,17 +14,19 @@ class JoyStickInputFunctions(Enum):
     # basic action
     none = r'<None>'
     # layer switch action
-    press_to_layer = r'<PressToLayer =(.*)>'
-    hold_to_layer = r'<HoldToLayer =(.*)>'
+    press_to_layer = r'<PressToLayer:(.*)>'
+    hold_to_layer = r'<HoldToLayer:(.*)>'
     # axis action
     enter_axis = r'<EnterCode>'
     # mouse action
-    mouse_move = r'<Mouse =(\d+)>'
-    mouse_click = r'<MouseClick =(.*)>'
+    mouse_move = r'<Mouse:(\d+)>'
+    mouse_click = r'<MouseClick:(.*)>'
+    mouse_axis = r'<MouseAxis>'
 
     @classmethod
     def get_function(cls, key: str) -> Optional[Tuple[str, re.Match]]:
-        for name, reg in cls.__members__.items():
+        for func in cls.__members__.values():
+            name, reg = func.name, func.value
             match_res = re.fullmatch(reg, key)
             if match_res:
                 return name, match_res
@@ -37,36 +39,14 @@ class JoyStickInputFunctions(Enum):
         return match_res is not None
 
 
-class JoyStickBasicFunction:
+class JoyStickFunctionController:
+    key_controller = KeyController()
+    mouse_controller = MouseController()
+
     @staticmethod
     def none():
         # do nothing
         return lambda _, __, ___: None
-
-    @staticmethod
-    def __press_release(controller, key, event, types=None):
-        if types is None:
-            types = [pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP]
-        if event == types[0]:
-            controller.press(key)
-        elif event == types[1]:
-            controller.release(key)
-        return None
-
-
-@dataclass
-class JoyStickKeyboardFunction(JoyStickBasicFunction):
-    key_controller = KeyController()
-
-    def press(self, key):
-        return lambda _, __, e: self.__press_release(self.key_controller, key, e)
-
-    def tap(self, key, _type=pygame.JOYBUTTONDOWN):
-        def __tap(core, joy, event):
-            if event == _type:
-                self.key_controller.tap(key)
-
-        return __tap
 
     @staticmethod
     def press_to_layer(layer):
@@ -88,6 +68,27 @@ class JoyStickKeyboardFunction(JoyStickBasicFunction):
 
         return _inner
 
+    # 与键盘有关的方法
+    @staticmethod
+    def __press_release(controller, key, event, types=None):
+        if types is None:
+            types = [pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP]
+        if event == types[0]:
+            controller.press(key)
+        elif event == types[1]:
+            controller.release(key)
+        return None
+
+    def press(self, key):
+        return lambda _, __, e: self.__press_release(self.key_controller, key, e)
+
+    def tap(self, key, _type=pygame.JOYBUTTONDOWN):
+        def __tap(core, joy, event):
+            if event == _type:
+                self.key_controller.tap(key)
+
+        return __tap
+
     @staticmethod
     def enter_axis():
         def __inner(core, joy, event):
@@ -99,11 +100,7 @@ class JoyStickKeyboardFunction(JoyStickBasicFunction):
 
         return __inner
 
-
-@dataclass
-class JoyStickMouseFunction(JoyStickBasicFunction):
-    mouse_controller = MouseController()
-
+    # 与鼠标有关的方法
     mouse_orient = (0, 0)
     mouse_acceleration = (0.3, 0.1)
     mouse_tick = [0, 0]
@@ -122,6 +119,9 @@ class JoyStickMouseFunction(JoyStickBasicFunction):
         b = Button[button]
         return lambda _, __, e: self.__press_release(self.mouse_controller, b, e)
 
+    @staticmethod
+    def mouse_axis():
+        def _mouse_axis(core, joy, event):
+            pass
 
-class JoyStickFunctionController(JoyStickKeyboardFunction, JoyStickMouseFunction):
-    pass
+        return _mouse_axis

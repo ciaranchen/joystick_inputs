@@ -1,1 +1,1 @@
-from qt_decorator import PropertyMeta, Property
+from .qt_decorator import PropertyMeta, Property

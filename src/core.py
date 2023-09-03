@@ -1,5 +1,5 @@
 import math
-from InputConfig import ArcJoyStickConfig, JoyStickFunctionController
+from InputConfig import ArcJoyStickConfig, JoyStickFunctionController, JoyStickButtons
 
 
 class Arc:
@@ -42,20 +42,22 @@ class ArcInputCore(Arc):
         self.available_layer = list(self.config.layers.keys())
         self.config.load_controller(JoyStickFunctionController())
 
-    def action(self, joy, event_type, button=None, trigger=None, axis=False):
+    def action(self, joy, event_type, button: JoyStickButtons = None, trigger: bool = None, axis: bool = False):
         now_layer = self.config.layers[self.layer]
         if axis:
             if not now_layer.is_axis_layer:
                 # Axis 的位置暂时不会产生输出
                 return
             # handle axis_move
-            func = now_layer.axis[axis]
-            func(self, joy, event_type)
+            # TODO:  如点击button一样对待
+            # func = now_layer.axis[axis]
+            # print(func)
+            # func(self, joy, event_type)
         if trigger is not None:
             func = now_layer.trigger[0 if trigger else 1]
             func(self, joy, event_type)
         elif button is not None:
-            func = now_layer.buttons[button]
+            func = now_layer.buttons[button.value]
             func(self, joy, event_type)
         else:
             print(button, trigger, axis)

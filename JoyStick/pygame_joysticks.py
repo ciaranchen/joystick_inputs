@@ -5,7 +5,7 @@ Joystick management class
 import enum
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 import pygame
 from pynput.keyboard import Key
@@ -79,8 +79,8 @@ class JoystickEventHandler(SingletonJoystickHandler):
         raise NotImplementedError
 
     # Tool Functions
-    def button_changed(self, button, e_type, callback):
-        self.state.buttons[button] = (e_type == pygame.JOYBUTTONDOWN)
+    def button_changed(self, button: JoyStickButtons, e_type, callback: Callable):
+        self.state.buttons[button.value] = (e_type == pygame.JOYBUTTONDOWN)
         callback(self.state, e_type, button=button)
 
 
@@ -113,7 +113,7 @@ class XBoxEventHandler(JoystickEventHandler):
             'lt': 4, 'rt': 5
         }
         res.button_mapping = {**{
-            v: k for k, v in JoyStickButtons.__members__.items() if v < 6
+            v.value: v for v in JoyStickButtons.__members__.values() if v.value < 6
         }, **{
             8: JoyStickButtons.LStickIn, 9: JoyStickButtons.RStickIn
         }}
@@ -129,18 +129,21 @@ class XBoxEventHandler(JoystickEventHandler):
 
     def handle_button(self, e, cb):
         if e.type == pygame.JOYBUTTONDOWN or e.type == pygame.JOYBUTTONUP:
-            b = self.button_mapping[e.button].value
-            self.button_changed(b, e.type, cb)
+            if e.button in self.button_mapping:
+                self.button_changed(self.button_mapping[e.button], e.type, cb)
         if e.type == pygame.JOYHATMOTION:
+            def handle_hat(now_x, last_x):
+                if now_x != last_x:
+                    if last_x != 0:
+                        self.button_changed(self.hat_mapping_x[last_x], pygame.JOYBUTTONUP, cb)
+                    if now_x != 0:
+                        self.button_changed(self.hat_mapping_x[now_x], pygame.JOYBUTTONDOWN, cb)
+
             vx, vy = e.value
-            if vx != self.LAST_HAT_X:
-                self.button_changed(self.hat_mapping_x[self.LAST_HAT_X], pygame.JOYBUTTONUP, cb)
-                if vx != 0:
-                    self.button_changed(self.hat_mapping_x[vx], pygame.JOYBUTTONDOWN, cb)
-            if vy != self.LAST_HAT_Y:
-                self.button_changed(self.hat_mapping_y[self.LAST_HAT_Y], pygame.JOYBUTTONUP, cb)
-                if vy != 0:
-                    self.button_changed(self.hat_mapping_y[vy], pygame.JOYBUTTONDOWN, cb)
+            handle_hat(vx, self.LAST_HAT_X)
+            handle_hat(vy, self.LAST_HAT_Y)
+            self.LAST_HAT_X = vx
+            self.LAST_HAT_Y = vy
 
     def handle_trigger(self, e, cb):
         if e.type != pygame.JOYAXISMOTION:
