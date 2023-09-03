@@ -1,85 +1,6 @@
 import math
-from functools import reduce
-from typing import Callable
-
-import pygame
-from pygame import JOYBUTTONUP, JOYBUTTONDOWN
-
-from pynput.mouse import Button, Controller as MouseController
-from pynput.keyboard import Key, Controller as KeyController
-
 from InputConfig.input_config import ArcJoyStickConfig
-
-
-class JoyStickFunctionController:
-    mouse_orient = (0, 0)
-    mouse_acceleration = (0.3, 0.1)
-    mouse_tick = [0, 0]
-    mouse_speed = [0, 0]
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.mouse_controller = MouseController()
-        self.key_controller = KeyController()
-
-    @staticmethod
-    def __tap(controller, key, event, types=None):
-        if types is None:
-            types = [pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP]
-        if event == types[0]:
-            controller.press(key)
-        elif event == types[1]:
-            controller.release(key)
-        return None
-
-    @staticmethod
-    def press_to_layer(layer):
-        def _inner(core, joy, event):
-            if event == JOYBUTTONDOWN:
-                print(layer)
-                core.layer = layer
-
-        return _inner
-
-    @staticmethod
-    def hold_to_layer(layer):
-        def _inner(core, _, event):
-            if event == JOYBUTTONUP:
-                core.layer = core.last_layer
-            elif event == JOYBUTTONDOWN:
-                core.last_layer = core.layer
-                core.layer = layer
-
-        return _inner
-
-    def enter_axis(self):
-        def __inner(core, joy, event):
-            now_layer = core.config.layers[core.layer]
-            l_index = core.which_arc(joy.lx, joy.ly, now_layer.L_NUM)
-            r_index = core.which_arc(joy.rx, joy.ry, now_layer.R_NUM)
-            func = now_layer.axis[l_index][r_index]
-            return func(core, joy, event)
-
-        return __inner
-
-    @staticmethod
-    def none():
-        # do nothing
-        return lambda _, __, ___: None
-
-    def mouse_move(self, input):
-        try:
-            index = int(input)
-        except:
-            raise RuntimeError('Error config')
-        # direction = [][index]
-
-    def mouse_click(self, button):
-        b = {'left': Button.left, 'right': Button.right, 'middle': Button.middle}[button]
-        return lambda _, __, e: self.__tap(self.mouse_controller, b, e)
-
-    def press(self, key):
-        return lambda _, __, e: self.__tap(self.key_controller, key, e)
+from InputConfig.input_functions import JoyStickFunctionController
 
 
 class InputManagerCore:
@@ -91,19 +12,14 @@ class InputManagerCore:
         self.available_layer = list(self.config.layers.keys())
         print('default_layer:', self.layer)
 
-        self.function_axises = []
-        for name, layer in self.config.layers.items():
-            axs = reduce(lambda x, y: x + y, layer._axis, [])
-            if any([isinstance(a, tuple) for a in axs]):
-                self.function_axises.append(name)
-
+        self.axis_function_layers = [name for name, layer in self.config.layers.items() if not layer.is_axis_layer]
         self.config.load_controller(JoyStickFunctionController())
 
     def action(self, joy, event_type, button=None, trigger=None, axis=False):
         # check_layer()
         now_layer = self.config.layers[self.layer]
         if axis:
-            if now_layer in self.function_axises:
+            if now_layer in self.axis_function_layers:
                 # handle axis_move
                 func = now_layer.axis[axis]
                 func(self, joy, event_type)
@@ -144,6 +60,8 @@ class InputManagerCore:
 
 
 if __name__ == '__main__':
+    import pygame
+
     imc = InputManagerCore(r"C:\Users\ciaran\Desktop\Projects\joystick_inputs\configs\code6.json")
-    imc.action(None, JOYBUTTONDOWN, trigger=False)
-    imc.action(None, JOYBUTTONUP, trigger=False)
+    imc.action(None, pygame.JOYBUTTONDOWN, trigger=False)
+    imc.action(None, pygame.JOYBUTTONUP, trigger=False)
