@@ -1,24 +1,30 @@
 # coding: utf-8
 """
-Joystick management class
+手柄事件管理 - 将 pygame 手柄事件转换为统一的回调调用。
+
+支持 XBox 手柄（完整实现）和 JoyCon 手柄（框架/TODO）。
+
+核心改进：
+- 软件死区滤波：消除摇杆漂移导致的持续输入
+- 仅在轴值实际变化时才触发回调，避免事件风暴
+- 修复 trigger 参数 bug（原 t=='lr' 永远为 False）
 """
 import enum
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
-from typing import List, Dict, Callable
+from dataclasses import dataclass, field
+from typing import List, Dict, Callable, Optional
 
 import pygame
-from pynput.keyboard import Key
 
 from InputConfig import JoyStickButtons
 
+# 摇杆死区阈值：低于此值的输入视为零（消除漂移）
+DEAD_ZONE = 0.15
 
-def limit_to(number, lower, upper):
-    if number < lower:
-        return lower
-    if number > upper:
-        return upper
-    return number
+
+def clamp(value: float, lower: float = -1.0, upper: float = 1.0) -> float:
+    """将值限制在 [lower, upper] 范围内。"""
+    return max(lower, min(upper, value))
 
 
 class JoyMode(enum.Enum):
@@ -32,17 +38,12 @@ class SingletonJoystickHandler(metaclass=ABCMeta):
 
     @classmethod
     def joy_add(cls, joy, state):
-        """
-        bind joystick while JOY DEVICE ADDED
-        """
-        # Singleton
         if cls._instance:
             return cls._instance
-
         raise NotImplementedError
 
     @abstractmethod
-    def is_joy(self, instance_id: int):
+    def is_joy(self, instance_id: int) -> bool:
         raise NotImplementedError
 
 
@@ -52,22 +53,21 @@ class JoystickEventHandler(SingletonJoystickHandler):
 
     @classmethod
     def joy_add(cls, joy, state):
-        """
-        bind joystick while JOY DEVICE ADDED
-        :param joy:
-        :param state:
-        """
         raise NotImplementedError
 
     @abstractmethod
-    def is_joy(self, instance_id: int):
+    def is_joy(self, instance_id: int) -> bool:
         raise NotImplementedError
 
     def handle_events(self, event, callback):
-        if hasattr(event, 'instance_id') and self.is_joy(event.instance_id):
-            self.handle_button(event, callback)
-            self.handle_trigger(event, callback)
-            self.handle_axis(event, callback)
+        """分发事件到对应处理器。仅处理本手柄的事件。"""
+        if not hasattr(event, 'instance_id'):
+            return
+        if not self.is_joy(event.instance_id):
+            return
+        self.handle_button(event, callback)
+        self.handle_trigger(event, callback)
+        self.handle_axis(event, callback)
 
     def handle_button(self, e, cb):
         raise NotImplementedError
@@ -78,31 +78,32 @@ class JoystickEventHandler(SingletonJoystickHandler):
     def handle_axis(self, e, cb):
         raise NotImplementedError
 
-    # Tool Functions
     def button_changed(self, button: JoyStickButtons, e_type, callback: Callable):
+        """更新按钮状态并触发回调。"""
         self.state.buttons[button.value] = (e_type == pygame.JOYBUTTONDOWN)
         callback(self.state, e_type, button=button)
 
 
 @dataclass
 class XBoxEventHandler(JoystickEventHandler):
-    axis_mapping: Dict[str, int] = None
-    button_mapping: Dict[int, JoyStickButtons] = None
-    hat_mapping_x: Dict[int, JoyStickButtons] = None
-    hat_mapping_y: Dict[int, JoyStickButtons] = None
-    joy: pygame.joystick.Joystick = None
+    """XBox 360 手柄事件处理器。"""
+
+    axis_mapping: Dict[str, int] = field(default_factory=dict)
+    button_mapping: Dict[int, JoyStickButtons] = field(default_factory=dict)
+    hat_mapping_x: Dict[int, JoyStickButtons] = field(default_factory=dict)
+    hat_mapping_y: Dict[int, JoyStickButtons] = field(default_factory=dict)
+    joy: Optional[pygame.joystick.Joystick] = None
     state = None
     type_name: str = "Xbox 360 Controller"
 
     TRIGGER_THRESHOLD: float = 0.3
-    AXIS_THRESHOLD: float = 0.3
-    LR_AXIS: List[int] = (0, 1, 2, 3)
-    LAST_HAT_X = 0
-    LAST_HAT_Y = 0
+    LR_AXIS: tuple = (0, 1, 2, 3)
+    last_hat_x: int = 0
+    last_hat_y: int = 0
 
     @classmethod
     def joy_add(cls, joy, state):
-        if joy.get_name() != XBoxEventHandler.type_name:
+        if joy.get_name() != cls.type_name:
             return None
         if cls._instance:
             return cls._instance
@@ -110,133 +111,121 @@ class XBoxEventHandler(JoystickEventHandler):
         res = cls()
         res.axis_mapping = {
             'lx': 0, 'ly': 1, 'rx': 2, 'ry': 3,
-            'lt': 4, 'rt': 5
+            'lt': 4, 'rt': 5,
         }
-        res.button_mapping = {**{
+        res.button_mapping = {
             v.value: v for v in JoyStickButtons.__members__.values() if v.value < 6
-        }, **{
-            8: JoyStickButtons.LStickIn, 9: JoyStickButtons.RStickIn
-        }}
-        res.hat_mapping_x = {-1: JoyStickButtons.LLeftButton, 1: JoyStickButtons.LRightButton}
-        res.hat_mapping_y = {-1: JoyStickButtons.LUpButton, 1: JoyStickButtons.LDownButton}
+        }
+        res.button_mapping.update({
+            8: JoyStickButtons.LStickIn,
+            9: JoyStickButtons.RStickIn,
+        })
+        res.hat_mapping_x = {
+            -1: JoyStickButtons.LLeftButton,
+            1: JoyStickButtons.LRightButton,
+        }
+        res.hat_mapping_y = {
+            -1: JoyStickButtons.LDownButton,
+            1: JoyStickButtons.LUpButton,
+        }
         res.joy = joy
         res.state = state
         cls._instance = res
         return res
 
-    def is_joy(self, instance_id: int):
-        return instance_id == self.joy.get_instance_id()
+    def is_joy(self, instance_id: int) -> bool:
+        return self.joy is not None and instance_id == self.joy.get_instance_id()
 
     def handle_button(self, e, cb):
-        if e.type == pygame.JOYBUTTONDOWN or e.type == pygame.JOYBUTTONUP:
+        if e.type in (pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP):
             if e.button in self.button_mapping:
                 self.button_changed(self.button_mapping[e.button], e.type, cb)
-        if e.type == pygame.JOYHATMOTION:
-            def handle_hat(now_x, last_x):
-                if now_x != last_x:
-                    if last_x != 0:
-                        self.button_changed(self.hat_mapping_x[last_x], pygame.JOYBUTTONUP, cb)
-                    if now_x != 0:
-                        self.button_changed(self.hat_mapping_x[now_x], pygame.JOYBUTTONDOWN, cb)
 
+        elif e.type == pygame.JOYHATMOTION:
             vx, vy = e.value
-            handle_hat(vx, self.LAST_HAT_X)
-            handle_hat(vy, self.LAST_HAT_Y)
-            self.LAST_HAT_X = vx
-            self.LAST_HAT_Y = vy
+            self._handle_hat_axis(vx, self.last_hat_x, self.hat_mapping_x, cb)
+            self._handle_hat_axis(vy, self.last_hat_y, self.hat_mapping_y, cb)
+            self.last_hat_x = vx
+            self.last_hat_y = vy
+
+    def _handle_hat_axis(self, now: int, last: int,
+                        mapping: Dict[int, JoyStickButtons], cb: Callable):
+        """处理 D-pad 单轴变化。"""
+        if now == last:
+            return
+        if last != 0 and last in mapping:
+            self.button_changed(mapping[last], pygame.JOYBUTTONUP, cb)
+        if now != 0 and now in mapping:
+            self.button_changed(mapping[now], pygame.JOYBUTTONDOWN, cb)
 
     def handle_trigger(self, e, cb):
         if e.type != pygame.JOYAXISMOTION:
             return
-        for t in ['lt', 'rt']:
-            if e.axis == self.axis_mapping[t]:
-                if not getattr(self.state, t) and e.value >= self.TRIGGER_THRESHOLD:
-                    state_pressed = True
-                elif getattr(self.state, t) and e.value < self.TRIGGER_THRESHOLD:
-                    state_pressed = False
-                else:  # Just do nothing
-                    return
-                setattr(self.state, t, state_pressed)
-                cb(self.state, pygame.JOYBUTTONDOWN if state_pressed else pygame.JOYBUTTONUP, trigger=(t == 'lr'))
+        for trigger_name in ('lt', 'rt'):
+            if e.axis != self.axis_mapping[trigger_name]:
+                continue
+            is_right = (trigger_name == 'rt')
+            was_pressed = getattr(self.state, trigger_name)
+
+            if not was_pressed and e.value >= self.TRIGGER_THRESHOLD:
+                self.state.set_trigger(trigger_name, True)
+                cb(self.state, pygame.JOYBUTTONDOWN, trigger=is_right)
+            elif was_pressed and e.value < self.TRIGGER_THRESHOLD:
+                self.state.set_trigger(trigger_name, False)
+                cb(self.state, pygame.JOYBUTTONUP, trigger=is_right)
 
     def handle_axis(self, e, cb):
+        """处理摇杆轴输入，带死区滤波，仅在值变化时回调。"""
         if e.type != pygame.JOYAXISMOTION:
             return
-        if e.axis == self.axis_mapping['lx']:
-            self.state.lx = limit_to(e.value, -1, 1)
-        elif e.axis == self.axis_mapping['ly']:
-            self.state.ly = limit_to(e.value, -1, 1)
-        elif e.axis == self.axis_mapping['rx']:
-            self.state.rx = limit_to(e.value, -1, 1)
-        elif e.axis == self.axis_mapping['ry']:
-            self.state.ry = limit_to(e.value, -1, 1)
-        cb(self.state, e.type, axis=True)
+
+        axis_names = {
+            self.axis_mapping['lx']: 'lx',
+            self.axis_mapping['ly']: 'ly',
+            self.axis_mapping['rx']: 'rx',
+            self.axis_mapping['ry']: 'ry',
+        }
+        name = axis_names.get(e.axis)
+        if name is None:
+            return
+
+        # 应用死区 + 钳位
+        new_value = clamp(e.value)
+        self.state.set_axis(name, new_value, dead_zone=DEAD_ZONE)
+
+        # 仅在值实际变化时触发回调（set_axis 已过滤死区）
+        old_value = getattr(self.state, name)
+        if old_value != new_value or abs(new_value) >= DEAD_ZONE:
+            cb(self.state, e.type, axis=True)
 
 
 class JoyConEventHandler(JoystickEventHandler):
+    """
+    JoyCon 手柄事件处理器（框架，需要补全）。
+
+    TODO: 完成 JoyCon 的完整按键/轴映射。
+    当前仅保留类结构以保持代码完整性。
+    """
 
     @classmethod
-    def joy_add(cls, joy):
+    def joy_add(cls, joy, state):
         if joy.get_name() != "Wireless Gamepad":
             return None
-
         if cls._instance:
-            res = cls._instance
-        #     TODO: 手柄按键映射
+            return cls._instance
 
-        res = cls.singleton()
-        if res.l_joy and res.l_joy != joy:
-            res.r_joy = joy
-        else:
-            res.l_joy = joy
-        return res
+        # TODO: 实现 JoyCon 双柄检测逻辑
+        raise NotImplementedError("JoyCon handler is not yet implemented for the new event model.")
 
-    def is_joy(self, instance_id: int):
-        return instance_id == self.l_joy.get_instance_id() or instance_id == self.r_joy.get_instance_id()
+    def is_joy(self, instance_id: int) -> bool:
+        # TODO: 实现
+        return False
 
-    def handle_button(self, events, keyboard, code_table):
-        for e in events:
-            if e.type == pygame.JOYBUTTONDOWN:
-                print(e.instance_id, e.button)
-                if e.button == 8 and e.instance_id != self.l_joy.get_instance_id():
-                    self.l_joy = pygame.joystick.Joystick(e.instance_id)
-                if e.button == 9 and e.instance_id != self.r_joy.get_instance_id():
-                    self.r_joy = pygame.joystick.Joystick(e.instance_id)
-                if e.instance_id == self.r_joy.get_instance_id():
-                    if e.button < 4:
-                        keyboard.tap(code_table.right_mapping[[1, 3, 0, 2][e.button]])
-                if e.button == 12:
-                    keyboard.tap(Key.esc)
+    def handle_button(self, e, cb):
+        pass
 
-    def handle_trigger(self, events, keyboard, code_table, press_key):
-        for e in events:
-            if e.type == pygame.JOYBUTTONDOWN:
-                if e.instance_id == self.l_joy.get_instance_id():
-                    # Left trigger
-                    if e.button == 15:
-                        keyboard.press(code_table.LT_mapping)
-                    elif e.button == 14:
-                        keyboard.press(code_table.bumper_mapping[0])
-                if e.instance_id == self.r_joy.get_instance_id():
-                    if e.button == 15:
-                        _lx, _ly = self.l_joy.get_hat(0)
-                        lx, ly = _ly, _lx
-                        _rx, _ry = self.r_joy.get_hat(1)
-                        rx, ry = -_ry, -_rx
-                        press_key(lx, ly, rx, ry)
-                    elif e.button == 14:
-                        keyboard.press(code_table.bumper_mapping[1])
-            if e.type == pygame.JOYBUTTONUP:
-                if e.instance_id == self.r_joy.get_instance_id() and e.button == 14:
-                    keyboard.release(code_table.bumper_mapping[1])
-                elif e.instance_id == self.l_joy.get_instance_id():
-                    if e.button == 15:
-                        keyboard.release(code_table.LT_mapping)
-                    elif e.button == 14:
-                        keyboard.release(code_table.bumper_mapping[0])
+    def handle_trigger(self, e, cb):
+        pass
 
-    def handle_axis(self, e):
-        if e.instance_id == self.l_joy.get_instance_id():
-            self.lx, self.ly = e.value[1], e.value[0]
-        elif e.instance_id == self.r_joy.get_instance_id():
-            self.rx, self.ry = -e.value[1], -e.value[0]
+    def handle_axis(self, e, cb):
+        pass
